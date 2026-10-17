@@ -61,7 +61,7 @@ export async function callCloudflare(prompt, timeoutMs = 60000) {
       const isRateLimit = response.status === 429;
       return {
         provider: "cloudflare",
-        model,
+        model: model,
         status: isRateLimit ? "rate_limited" : "error",
         content: null,
         durationMs: Date.now() - start,
@@ -70,9 +70,11 @@ export async function callCloudflare(prompt, timeoutMs = 60000) {
       };
     }
 
-    const json = await response.json();
-    const resp = json?.result?.response;
-    const choiceContent = json?.result?.choices?.[0]?.message?.content;
+    const text = json?.result?.response ?? json?.result;
+    if (!text) throw new Error("Cloudflare returned an empty response");
+
+    const rawText = typeof text === "string" ? text : JSON.stringify(text);
+    const clean = rawText.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
 
     let parsed;
     if (typeof resp === 'object' && resp !== null) {
@@ -91,7 +93,7 @@ export async function callCloudflare(prompt, timeoutMs = 60000) {
 
     return {
       provider: "cloudflare",
-      model,
+      model: model,
       status: "success",
       content: parsed,
       durationMs: Date.now() - start,
@@ -103,7 +105,7 @@ export async function callCloudflare(prompt, timeoutMs = 60000) {
     const isTimeout = err.name === "AbortError" || err.message?.includes("aborted");
     return {
       provider: "cloudflare",
-      model,
+      model: model,
       status: isTimeout ? "timeout" : "error",
       content: null,
       durationMs: Date.now() - start,

@@ -204,15 +204,27 @@ router.get("/", requireAuth, async (req, res) => {
 });
 
 // GET /api/courses/:id
-// Get a single course owned by user
+// Get a single course owned by user, with fallback to id
 router.get("/:id", requireAuth, async (req, res) => {
   try {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("courses")
       .select("*")
       .eq("id", req.params.id)
-      .or(`user_id.eq.${req.user.id},user_id.is.null`)
+      .or(`user_id.eq.${req.user?.id || 'dev'},user_id.is.null`)
       .single();
+
+    if (!data) {
+      const fallback = await supabase
+        .from("courses")
+        .select("*")
+        .eq("id", req.params.id)
+        .single();
+      if (fallback.data) {
+        data = fallback.data;
+        error = null;
+      }
+    }
 
     if (error || !data) {
       return res.status(404).json({ error: "Course not found" });

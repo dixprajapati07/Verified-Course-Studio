@@ -27,6 +27,7 @@ function buildClient() {
  */
 export async function callGroq(prompt, timeoutMs = 60000) {
   const client = buildClient();
+  const model = getModel();
   const start = Date.now();
 
   const model = getModel();

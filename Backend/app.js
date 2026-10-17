@@ -7,6 +7,7 @@ import authRoutes from "./routes/authRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
 import exportRoutes from "./routes/exportRoutes.js";
 import ttsRoutes from "./routes/ttsRoutes.js";
+import verifyRoutes from "./routes/verifyRoutes.js";
 import { requireAuth } from "./middleware/auth.js";
 
 const app = express();
@@ -28,8 +29,7 @@ app.use(
   cors({
     origin(origin, callback) {
       // Allow requests with no Origin header (curl, server-to-server, health checks)
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
+      if (allowedOrigins.includes("*") || allowedOrigins.includes(origin) || origin.endsWith(".vercel.app")) return callback(null, true);
       callback(new Error(`CORS: origin '${origin}' is not allowed`));
     },
     methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -74,7 +74,8 @@ function getJavaVersion() {
 
 app.use("/api/tts", ttsRoutes);
 
-app.get("/api/me", requireAuth, (req, res) => {
+app.get("/api/health", async (_req, res) => {
+  const java = await getJavaVersion();
   res.json({
     status: "ok",
     timestamp: new Date().toISOString(),

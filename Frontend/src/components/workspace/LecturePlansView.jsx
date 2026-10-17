@@ -1,5 +1,5 @@
 // src/components/workspace/LecturePlansView.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   BookOpen,
   BookText,
@@ -29,6 +29,11 @@ import { useApp } from '../../context/AppContext';
 export default function LecturePlansView({ course, onCourseUpdated, activeTab = 'all' }) {
   const { addToast } = useApp();
   const [currentTab, setCurrentTab] = useState(activeTab); // 'all' | 'notes' | 'activities' | 'exercises' | 'homework'
+  useEffect(() => {
+    if (activeTab) {
+      setCurrentTab(activeTab);
+    }
+  }, [activeTab]);
   const [expandedLectures, setExpandedLectures] = useState(() => {
     // By default expand the first lecture
     return { 1: true };
@@ -38,7 +43,103 @@ export default function LecturePlansView({ course, onCourseUpdated, activeTab = 
   const [revealedSolutions, setRevealedSolutions] = useState({});
 
   const content = course?.content || {};
-  const rawLectures = Array.isArray(content.lectures) ? content.lectures : [];
+  let rawLectures = Array.isArray(content.lectures) && content.lectures.length > 0 ? content.lectures : [];
+
+  if (rawLectures.length === 0 && Array.isArray(content.modules) && content.modules.length > 0) {
+    const totalM = course?.duration_minutes || 60;
+    const dur = Math.round(totalM / content.modules.length);
+    rawLectures = content.modules.map((m, idx) => ({
+      lectureNumber: idx + 1,
+      title: m.title || `Lecture ${idx + 1}`,
+      durationMinutes: dur,
+      learningObjectives: m.lessons?.map((l) => `Understand ${l.title}`) || [`Master ${m.title}`],
+      topicsCovered: m.lessons?.map((l) => l.title) || [m.title],
+      teachingNotes: m.lessons?.map((l) => l.explanation).filter(Boolean).join("\n\n") || `Deliver structured guidance on ${m.title}`,
+      practicalActivity: {
+        title: `${m.title} Hands-on Lab`,
+        description: m.lessons?.[0]?.example ? `Experiment with: ${m.lessons[0].example}` : `Practice core principles of ${m.title}`,
+        steps: ["Review core concepts", "Implement working solution", "Verify outputs"],
+        expectedDeliverable: "Working demonstration or verified code"
+      },
+      codeExamples: m.lessons?.filter((l) => l.example).map((l) => ({
+        title: `${l.title} Example`,
+        language: "Java",
+        code: l.example,
+        explanation: l.explanation || ""
+      })) || [],
+      commonMistakes: [`Common misconception when implementing ${m.title}`],
+      studentExercises: [
+        {
+          title: `${m.title} Practice Exercise`,
+          difficulty: course?.student_level || "Beginner",
+          problemStatement: `Implement a complete program demonstrating ${m.title}.`,
+          hint: "Review the lecture examples.",
+          solution: m.lessons?.[0]?.example || "// Reference solution"
+        }
+      ],
+      quizQuestions: (m.quiz || []).map((q) => ({
+        question: q.question,
+        options: q.options || [],
+        answer: q.answer || q.options?.[0] || "",
+        explanation: q.explanation || "Standard verified textbook definition."
+      })),
+      homework: {
+        title: `${m.title} Assignment`,
+        instructions: `Extend the in-class exercise with tests for ${m.title}.`,
+        estimatedTimeMinutes: 30,
+        submissionGuidelines: "Submit source repository or documentation"
+      },
+      expectedOutcomes: [`Able to apply ${m.title} effectively in software development`]
+    }));
+  }
+
+  if (rawLectures.length === 0 && (course?.title || content?.title)) {
+    const totalM = course?.duration_minutes || 60;
+    const count = course?.numberOfLectures || 4;
+    const dur = Math.round(totalM / count);
+    const cleanTopic = course?.topic || course?.title || content?.title || "Curriculum";
+    rawLectures = Array.from({ length: count }, (_, idx) => ({
+      lectureNumber: idx + 1,
+      title: `${cleanTopic}: Session ${idx + 1}`,
+      durationMinutes: dur,
+      learningObjectives: [`Understand fundamental concepts of ${cleanTopic} - Part ${idx + 1}`],
+      topicsCovered: [`${cleanTopic} Core Principles`, `Practical Applications`],
+      teachingNotes: `Guide students through key concepts of ${cleanTopic} in session ${idx + 1}. Focus on core mechanics and real-world patterns.`,
+      practicalActivity: {
+        title: `${cleanTopic} Lab ${idx + 1}`,
+        description: `Hands-on coding exercise exploring ${cleanTopic}.`,
+        steps: ["Analyze requirements", "Write code", "Test execution"],
+        expectedDeliverable: "Working code example and explanation"
+      },
+      codeExamples: [],
+      commonMistakes: [`Common pitfalls when learning ${cleanTopic}`],
+      studentExercises: [
+        {
+          title: `${cleanTopic} Exercise ${idx + 1}`,
+          difficulty: course?.student_level || "Beginner",
+          problemStatement: `Complete a practical task demonstrating concepts from session ${idx + 1}.`,
+          hint: "Review key concepts covered in this session.",
+          solution: "// Reference implementation"
+        }
+      ],
+      quizQuestions: [
+        {
+          question: `Which statement accurately describes ${cleanTopic}?`,
+          options: ["Standard core implementation", "Incorrect usage", "Deprecated method", "Syntax error"],
+          answer: "Standard core implementation",
+          explanation: "Standard verified behavior."
+        }
+      ],
+      homework: {
+        title: `${cleanTopic} Assignment ${idx + 1}`,
+        instructions: `Extend session ${idx + 1} code with additional test cases.`,
+        estimatedTimeMinutes: 30,
+        submissionGuidelines: "Submit completed source files"
+      },
+      expectedOutcomes: [`Proficiency in session ${idx + 1} topics`]
+    }));
+  }
+
   const totalMins = course?.duration_minutes || 60;
   const lectureCount = rawLectures.length || course?.numberOfLectures || 4;
 

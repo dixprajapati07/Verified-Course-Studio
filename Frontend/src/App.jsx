@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import ToastContainer from './components/common/ToastContainer';
 import AuthModal from './components/common/AuthModal';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 import LandingPage         from './pages/LandingPage';
 import DashboardPage       from './pages/DashboardPage';
@@ -43,32 +44,34 @@ export default function App() {
         {/* RouterBridge must be inside BrowserRouter to access useNavigate */}
         <RouterBridge />
 
-        <Routes>
-          {/* Landing */}
-          <Route path="/"                                      element={<LandingPage />} />
+        <ErrorBoundary>
+          <Routes>
+            {/* Landing */}
+            <Route path="/"                                      element={<LandingPage />} />
 
-          {/* Course Creation Flow */}
-          <Route path="/create"                                element={<CreateCoursePage />} />
-          <Route path="/generate"                              element={<GenerationPage />} />
+            {/* Course Creation Flow */}
+            <Route path="/create"                                element={<CreateCoursePage />} />
+            <Route path="/generate"                              element={<GenerationPage />} />
 
-          {/* Course Library */}
-          <Route path="/dashboard"                             element={<DashboardPage />} />
+            {/* Course Library */}
+            <Route path="/dashboard"                             element={<DashboardPage />} />
 
-          {/* New unified Course Workspace (/course/:courseId and /course/:courseId/:section) */}
-          <Route path="/course/:courseId"                      element={<CourseWorkspacePage />} />
-          <Route path="/course/:courseId/:section"             element={<CourseWorkspacePage />} />
+            {/* New unified Course Workspace (/course/:courseId and /course/:courseId/:section) */}
+            <Route path="/course/:courseId"                      element={<CourseWorkspacePage />} />
+            <Route path="/course/:courseId/:section"             element={<CourseWorkspacePage />} />
 
-          {/* Legacy Studio routes — kept for backward-compat so existing links don't break */}
-          <Route path="/studio/:courseId"                      element={<CourseOverviewPage />} />
-          <Route path="/studio/:courseId/generate"             element={<GenerationPage />} />
-          <Route path="/studio/:courseId/slides"               element={<SlideEditorPage />} />
-          <Route path="/studio/:courseId/verification"         element={<VerificationPage />} />
-          <Route path="/studio/:courseId/exercises"            element={<ExercisesPage />} />
-          <Route path="/studio/:courseId/quiz"                 element={<QuizPage />} />
+            {/* Legacy Studio routes — kept for backward-compat so existing links don't break */}
+            <Route path="/studio/:courseId"                      element={<CourseOverviewPage />} />
+            <Route path="/studio/:courseId/generate"             element={<GenerationPage />} />
+            <Route path="/studio/:courseId/slides"               element={<SlideEditorPage />} />
+            <Route path="/studio/:courseId/verification"         element={<VerificationPage />} />
+            <Route path="/studio/:courseId/exercises"            element={<ExercisesPage />} />
+            <Route path="/studio/:courseId/quiz"                 element={<QuizPage />} />
 
-          {/* 404 Fallback */}
-          <Route path="*"                                      element={<NotFoundPage />} />
-        </Routes>
+            {/* 404 Fallback */}
+            <Route path="*"                                      element={<NotFoundPage />} />
+          </Routes>
+        </ErrorBoundary>
 
         <ToastContainer />
       </BrowserRouter>

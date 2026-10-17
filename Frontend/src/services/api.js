@@ -9,9 +9,9 @@ const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 /** Get auth token from sessionStorage (set by AuthModal on login) */
 export function getAuthToken() {
   try {
-    return sessionStorage.getItem("vcs_auth_token") || null;
+    return localStorage.getItem("vcs_auth_token") || sessionStorage.getItem("vcs_auth_token") || "dev-token";
   } catch {
-    return null;
+    return "dev-token";
   }
 }
 
@@ -52,10 +52,18 @@ async function apiFetch(path, options = {}) {
 // ─── AI Endpoints ──────────────────────────────────────────────────────────────
 
 /** Generate a full course */
-export async function apiGenerateCourse({ topic, student_level, duration_minutes, language, learning_objectives = '', parallel = false }) {
+export async function apiGenerateCourse({ topic, student_level, duration_minutes, language, learning_objectives = '', number_of_lectures, numberOfLectures, parallel = false }) {
   return apiFetch("/api/ai/generate-course", {
     method: "POST",
-    body: JSON.stringify({ topic, student_level, duration_minutes, language, learning_objectives, parallel }),
+    body: JSON.stringify({
+      topic,
+      student_level,
+      duration_minutes,
+      language,
+      learning_objectives,
+      number_of_lectures: number_of_lectures || numberOfLectures || 4,
+      parallel
+    }),
   });
 }
 

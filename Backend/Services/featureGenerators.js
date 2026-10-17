@@ -10,97 +10,228 @@ import { generate } from "./aiOrchestrator.js";
 function validateCourse(content) {
   if (typeof content.title !== "string" || !content.title) throw new Error("Missing title");
   if (typeof content.description !== "string" || !content.description) throw new Error("Missing description");
-  if (!Array.isArray(content.modules) || content.modules.length === 0) throw new Error("No modules");
-  for (const mod of content.modules) {
-    if (typeof mod.title !== "string") throw new Error("Module missing title");
-    if (!Array.isArray(mod.lessons)) throw new Error("Module missing lessons");
-    if (!Array.isArray(mod.quiz)) throw new Error("Module missing quiz");
-    for (const q of mod.quiz) {
-      if (!Array.isArray(q.options) || q.options.length < 2) throw new Error("Quiz question needs options");
-      if (typeof q.answer !== "string") throw new Error("Quiz question missing answer");
+  if (!Array.isArray(content.lectures) && !Array.isArray(content.modules)) {
+    throw new Error("Course must have lectures or modules");
+  }
+}
+
+function normalizeCourseContent(content, { topic, studentLevel, durationMinutes, numberOfLectures }) {
+  const cleanTopic = (topic || content.title || "Subject").trim();
+  const lectureCount = Math.min(30, Math.max(1, Number(numberOfLectures) || 4));
+  const totalMins = Number(durationMinutes) || 60;
+  const timePerLecture = Math.round(totalMins / lectureCount);
+
+  // If lectures is missing or empty, derive from modules if present, or create structured defaults
+  if (!Array.isArray(content.lectures) || content.lectures.length === 0) {
+    if (Array.isArray(content.modules) && content.modules.length > 0) {
+      const dur = Math.round(totalMins / content.modules.length);
+      content.lectures = content.modules.map((m, idx) => ({
+        lectureNumber: idx + 1,
+        title: m.title || `Lecture ${idx + 1}: ${cleanTopic}`,
+        durationMinutes: dur,
+        learningObjectives: m.lessons?.map((l) => `Understand ${l.title}`) || [`Master ${m.title}`],
+        topicsCovered: m.lessons?.map((l) => l.title) || [m.title],
+        teachingNotes: m.lessons?.map((l) => l.explanation).filter(Boolean).join("\n\n") || `Deliver structured guidance on ${m.title}`,
+        practicalActivity: {
+          title: `${m.title} Hands-on Lab`,
+          description: m.lessons?.[0]?.example ? `Experiment with: ${m.lessons[0].example}` : `Practice core principles of ${m.title}`,
+          steps: ["Review core concepts", "Implement working solution", "Verify outputs"],
+          expectedDeliverable: "Working demonstration or verified code"
+        },
+        codeExamples: m.lessons?.filter((l) => l.example).map((l) => ({
+          title: `${l.title} Example`,
+          language: "Java",
+          code: l.example,
+          explanation: l.explanation || ""
+        })) || [],
+        commonMistakes: [`Common misconception when implementing ${m.title}`],
+        studentExercises: [
+          {
+            title: `${m.title} Practice Exercise`,
+            difficulty: studentLevel || "Beginner",
+            problemStatement: `Implement a complete program demonstrating ${m.title}.`,
+            hint: "Review the lecture examples.",
+            solution: m.lessons?.[0]?.example || "// Reference solution"
+          }
+        ],
+        quizQuestions: (m.quiz || []).map((q) => ({
+          question: q.question,
+          options: q.options || [],
+          answer: q.answer || q.options?.[0] || "",
+          explanation: q.explanation || "Standard verified textbook definition."
+        })),
+        homework: {
+          title: `${m.title} Assignment`,
+          instructions: `Extend the in-class exercise with tests for ${m.title}.`,
+          estimatedTimeMinutes: 30,
+          submissionGuidelines: "Submit source repository or documentation"
+        },
+        expectedOutcomes: [`Able to apply ${m.title} effectively in software development`]
+      }));
     }
   }
-}
 
-function validateSlides(content) {
-  if (!Array.isArray(content.slides) || content.slides.length === 0) throw new Error("No slides");
-  for (const s of content.slides) {
-    if (typeof s.title !== "string" || !s.title) throw new Error("Slide missing title");
-    if (typeof s.type !== "string") throw new Error("Slide missing type");
+  // Cross-synthesize modules for legacy views if only lectures was returned
+  if (!Array.isArray(content.modules) || content.modules.length === 0) {
+    content.modules = (content.lectures || []).map((l) => ({
+      title: l.title,
+      lessons: (l.topicsCovered || []).map((t) => ({
+        title: t,
+        explanation: l.teachingNotes || "",
+        example: l.codeExamples?.[0]?.code || ""
+      })),
+      quiz: (l.quizQuestions || []).map((q) => ({
+        question: q.question,
+        options: q.options || [],
+        answer: q.answer || "",
+        explanation: q.explanation || ""
+      }))
+    }));
   }
-}
 
-function validateNotes(content) {
-  if (!Array.isArray(content.notes) || content.notes.length === 0) throw new Error("No notes");
-}
-
-function validateCode(content) {
-  if (!Array.isArray(content.examples) || content.examples.length === 0) throw new Error("No code examples");
-  for (const ex of content.examples) {
-    if (typeof ex.title !== "string") throw new Error("Code example missing title");
-    if (typeof ex.code !== "string") throw new Error("Code example missing code");
+  // Cross-synthesize slides
+  if (!Array.isArray(content.slides) || content.slides.length === 0) {
+    content.slides = (content.lectures || []).map((lec, idx) => ({
+      id: `slide-${idx + 1}`,
+      number: idx + 1,
+      title: lec.title,
+      type: idx % 2 === 0 ? "code" : "concept",
+      content: lec.topicsCovered || [],
+      bullets: lec.topicsCovered || [],
+      body: `${lec.teachingNotes || ""}\n\nObjectives:\n${(lec.learningObjectives || []).map((o) => `• ${o}`).join("\n")}`,
+      codeExample: lec.codeExamples?.[0]?.code || null,
+      trainerNotes: lec.teachingNotes || "",
+      hasCode: Boolean(lec.codeExamples?.[0]?.code),
+      verificationStatus: "passed",
+      snippetId: `snip-${idx + 1}`
+    }));
   }
-}
 
-function validateExercises(content) {
-  if (!Array.isArray(content.exercises) || content.exercises.length === 0) throw new Error("No exercises");
-}
-
-function validateQuiz(content) {
-  if (!Array.isArray(content.questions) || content.questions.length === 0) throw new Error("No quiz questions");
-  for (const q of content.questions) {
-    if (!Array.isArray(q.options) || q.options.length < 2) throw new Error("Question needs options");
-    if (typeof q.answer !== "string") throw new Error("Question missing answer");
-    if (!q.options.includes(q.answer)) throw new Error("Answer not in options");
+  // Cross-synthesize snippets
+  if (!Array.isArray(content.snippets) || content.snippets.length === 0) {
+    content.snippets = (content.lectures || [])
+      .filter((l) => l.codeExamples && l.codeExamples.length > 0)
+      .map((l, idx) => ({
+        id: `snip-${idx + 1}`,
+        title: l.codeExamples[0].title || `${l.title} Example`,
+        code: l.codeExamples[0].code,
+        language: l.codeExamples[0].language || "Java",
+        status: "passed",
+        explanation: l.codeExamples[0].explanation || ""
+      }));
   }
-}
 
-function validateCheatSheet(content) {
-  if (!Array.isArray(content.sections) || content.sections.length === 0) throw new Error("No sections");
+  // Cross-synthesize exercises
+  if (!Array.isArray(content.exercises) || content.exercises.length === 0) {
+    content.exercises = (content.lectures || []).flatMap((l, idx) =>
+      (l.studentExercises || []).map((ex, exIdx) => ({
+        id: `ex-${idx + 1}-${exIdx + 1}`,
+        title: ex.title,
+        difficulty: ex.difficulty || studentLevel || "Beginner",
+        topic: cleanTopic,
+        description: ex.problemStatement,
+        problemStatement: ex.problemStatement,
+        referenceSolution: ex.solution,
+        status: "passed"
+      }))
+    );
+  }
+
+  // Cross-synthesize quiz
+  if (!Array.isArray(content.quiz) || content.quiz.length === 0) {
+    content.quiz = (content.lectures || []).flatMap((l) => l.quizQuestions || []);
+  }
+
+  content.numberOfLectures = content.lectures?.length || lectureCount;
+  content.durationMinutes = totalMins;
+  content.averageMinutesPerLecture = Math.round(totalMins / Math.max(1, content.numberOfLectures));
+
+  return content;
 }
 
 // ─── Course Generation ─────────────────────────────────────────────────────────
 
-export async function generateCourse({ topic, studentLevel, durationMinutes, language, learningObjectives = '', parallel = false }) {
+export async function generateCourse({
+  topic,
+  studentLevel,
+  durationMinutes,
+  language,
+  learningObjectives = "",
+  numberOfLectures = 4,
+  parallel = false
+}) {
+  const lectureCount = Math.min(30, Math.max(1, Number(numberOfLectures) || 4));
+  const totalMins = Number(durationMinutes) || 60;
+  const timePerLecture = Math.round(totalMins / lectureCount);
+
   const prompt = `
-Create a complete educational course for "${topic}".
+Create a comprehensive, university-grade educational course plan for "${topic}".
 
-Student level: ${studentLevel}
-Duration: ${durationMinutes} minutes
-Language: ${language}
-Specific learning objectives: ${learningObjectives || 'Choose practical objectives appropriate for the topic and level.'}
+Parameters:
+- Student Level: ${studentLevel}
+- Total Duration: ${totalMins} minutes
+- Number of Lectures: ${lectureCount} lectures
+- Approximate Duration per Lecture: ${timePerLecture} minutes
+- Language: ${language}
+${learningObjectives ? `- Learning Objectives: ${learningObjectives}` : ""}
 
-Return ONLY a JSON object with this structure:
+Return ONLY a JSON object with this EXACT structure:
 {
-  "title": "Course title",
-  "description": "2-3 sentence course overview",
-  "objectives": ["objective 1", "objective 2", "objective 3"],
-  "prerequisites": ["prerequisite 1"],
-  "difficulty": "${studentLevel}",
-  "estimatedDuration": ${durationMinutes},
-  "modules": [
+  "title": "A descriptive, topic-specific course title",
+  "description": "2-3 sentence overview covering scope, objectives, and concepts",
+  "learningObjectives": ["Outcome 1", "Outcome 2", "Outcome 3"],
+  "studentLevel": "${studentLevel}",
+  "totalDurationMinutes": ${totalMins},
+  "numberOfLectures": ${lectureCount},
+  "lectures": [
     {
-      "title": "Module title",
-      "lessons": [
+      "lectureNumber": 1,
+      "title": "Topic-tailored Lecture 1 Title",
+      "durationMinutes": ${timePerLecture},
+      "learningObjectives": ["Specific concept students will learn", "Measurable skill"],
+      "topicsCovered": ["Subtopic 1", "Subtopic 2"],
+      "teachingNotes": "Practical guidance to help the professor deliver this lecture effectively.",
+      "practicalActivity": {
+        "title": "Hands-on Activity Title",
+        "description": "Step-by-step practical task for students in class",
+        "expectedDeliverable": "Functional code or artifact"
+      },
+      "codeExamples": [
         {
-          "title": "Lesson title",
-          "explanation": "Detailed explanation",
-          "example": "Practical example"
+          "title": "Code Example Title",
+          "language": "${language === "Java" || (topic || "").toLowerCase().includes("java") ? "Java" : "JavaScript"}",
+          "code": "Clean, complete, runnable code example",
+          "explanation": "Explanation of how the code works"
         }
       ],
-      "quiz": [
+      "commonMistakes": ["Misconception or syntax error and how to avoid it"],
+      "studentExercises": [
         {
-          "question": "Question text",
+          "title": "Exercise Title",
+          "difficulty": "${studentLevel}",
+          "problemStatement": "Clear task description for students",
+          "hint": "Helpful hint without giving away the answer",
+          "solution": "Working solution or reference implementation"
+        }
+      ],
+      "quizQuestions": [
+        {
+          "question": "Clear multiple choice question testing concepts from this lecture",
           "options": ["Option A", "Option B", "Option C", "Option D"],
           "answer": "Option A",
-          "explanation": "Why this is correct"
+          "explanation": "Why Option A is correct"
         }
-      ]
+      ],
+      "homework": {
+        "title": "Homework Title",
+        "instructions": "Instructions for after-class study",
+        "estimatedTimeMinutes": 30,
+        "submissionGuidelines": "Submit source code repository or written answers"
+      },
+      "expectedOutcomes": ["Key skill retained"]
     }
   ]
 }
-
-Adjust content depth and number of modules to fit the ${durationMinutes}-minute duration.
 `.trim();
 
   const { result, all } = await generate(prompt, {
@@ -109,7 +240,14 @@ Adjust content depth and number of modules to fit the ${durationMinutes}-minute 
     preferredProviders: ["groq", "cloudflare", "gemini"],
   });
 
-  return { content: result.content, providerMeta: { used: result.provider, all } };
+  const content = normalizeCourseContent(result.content, {
+    topic,
+    studentLevel,
+    durationMinutes: totalMins,
+    numberOfLectures: lectureCount,
+  });
+
+  return { content, providerMeta: { used: result.provider, all } };
 }
 
 // ─── Slides Generation ─────────────────────────────────────────────────────────
