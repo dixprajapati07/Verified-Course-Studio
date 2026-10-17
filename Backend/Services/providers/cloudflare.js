@@ -77,10 +77,18 @@ export async function callCloudflare(prompt, timeoutMs = 60000) {
     const clean = rawText.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
 
     let parsed;
-    try {
-      parsed = JSON.parse(clean);
-    } catch {
-      throw new Error("Cloudflare returned non-JSON response");
+    if (typeof resp === 'object' && resp !== null) {
+      parsed = resp;
+    } else {
+      const rawText = (typeof resp === 'string' ? resp : '') || (typeof choiceContent === 'string' ? choiceContent : '');
+      if (!rawText) throw new Error("Cloudflare returned an empty response");
+      // Cloudflare models may wrap JSON in markdown fences — strip them
+      const clean = rawText.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
+      try {
+        parsed = JSON.parse(clean);
+      } catch {
+        throw new Error("Cloudflare returned non-JSON response");
+      }
     }
 
     return {

@@ -125,6 +125,18 @@ export default function CourseWorkspacePage() {
     fetchCourse();
   }, [courseId]);
 
+  const cheatSheetSections = useMemo(() => {
+    const raw = course?.content?.cheatSheet;
+    if (Array.isArray(raw) && raw.length > 0) return raw;
+    return null; // null means show static fallback
+  }, [course]);
+
+  const trainerNotesList = useMemo(() => {
+    const raw = course?.content?.notes;
+    if (Array.isArray(raw) && raw.length > 0) return raw;
+    return null; // null means derive from slides
+  }, [course]);
+
   // Record path for smart back tracking
   useEffect(() => {
     recordNavPath(location.pathname);
@@ -982,70 +994,105 @@ export default function CourseWorkspacePage() {
               <div style={{ marginBottom: '1.5rem' }}>
                 <p className="overline-editorial" style={{ marginBottom: '0.35rem' }}>Speaker Cue Cards</p>
                 <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                  Trainer Notes & Presentation Timings
+                  Trainer Notes & Teaching Guide
                 </h2>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  Comprehensive talking points, pedagogical warnings, and student questions prepared for every slide.
+                  Comprehensive talking points, pedagogical tips, and teaching strategies for every lesson.
                 </p>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                {slidesList.map(slide => (
-                  <div
-                    key={slide.id}
-                    style={{
-                      background: 'var(--bg-card)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius-sm)',
-                      padding: '1.5rem'
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                        <span style={{
-                          padding: '0.15rem 0.5rem',
-                          borderRadius: 'var(--radius-full)',
-                          background: 'var(--bg-surface-secondary)',
-                          border: '1px solid var(--border)',
-                          fontSize: '0.7rem',
-                          fontFamily: 'var(--font-mono)'
-                        }}>
-                          SLIDE {slide.number}
-                        </span>
-                        <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-                          {slide.title}
-                        </h3>
-                      </div>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                        Est. 4-5 mins
-                      </span>
-                    </div>
-
-                    <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.65, marginBottom: '1rem' }}>
-                      {slide.trainerNotes || 'No trainer notes available for this slide.'}
-                    </p>
-
-                    {slide.body && (
-                      <div style={{
-                        display: 'flex',
-                        gap: '0.5rem',
-                        alignItems: 'baseline',
-                        padding: '0.65rem 0.85rem',
-                        background: 'var(--bg-surface-secondary)',
+              {trainerNotesList ? (
+                // Show AI-generated structured trainer notes
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  {trainerNotesList.map((note, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border)',
                         borderRadius: 'var(--radius-sm)',
-                        border: '1px solid var(--border-subtle)'
-                      }}>
-                        <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                          Key Concept:
-                        </span>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                          {slide.body}
-                        </span>
+                        padding: '1.5rem'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <div>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', display: 'block', marginBottom: '0.2rem' }}>
+                            {note.moduleTitle}
+                          </span>
+                          <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+                            {note.lessonTitle}
+                          </h3>
+                        </div>
+                        {note.estimatedTime && (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', flexShrink: 0 }}>
+                            {note.estimatedTime}
+                          </span>
+                        )}
                       </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+
+                      <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.65, marginBottom: '0.85rem' }}>
+                        {note.overview}
+                      </p>
+
+                      {Array.isArray(note.keyPoints) && note.keyPoints.length > 0 && (
+                        <div style={{ marginBottom: '0.85rem' }}>
+                          <p style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.4rem' }}>Key Points</p>
+                          <ul style={{ margin: 0, paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                            {note.keyPoints.map((pt, i) => (
+                              <li key={i} style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{pt}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {Array.isArray(note.teachingTips) && note.teachingTips.length > 0 && (
+                        <div style={{
+                          padding: '0.65rem 0.85rem',
+                          background: 'var(--bg-surface-secondary)',
+                          borderRadius: 'var(--radius-sm)',
+                          border: '1px solid var(--border-subtle)'
+                        }}>
+                          <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Teaching Tips: </span>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{note.teachingTips.join(' · ')}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                // Fallback: derive from slide trainer notes
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  {slidesList.map(slide => (
+                    <div
+                      key={slide.id}
+                      style={{
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-sm)',
+                        padding: '1.5rem'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                          <span style={{
+                            padding: '0.15rem 0.5rem',
+                            borderRadius: 'var(--radius-full)',
+                            background: 'var(--bg-surface-secondary)',
+                            border: '1px solid var(--border)',
+                            fontSize: '0.7rem',
+                            fontFamily: 'var(--font-mono)'
+                          }}>SLIDE {slide.number}</span>
+                          <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{slide.title}</h3>
+                        </div>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>Est. 4-5 mins</span>
+                      </div>
+                      <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.65 }}>
+                        {slide.trainerNotes || 'No trainer notes available for this slide.'}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -1311,43 +1358,51 @@ export default function CourseWorkspacePage() {
                       </h3>
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
-                        {q.options.map((opt, optIdx) => {
+                        {(q.options || []).map((opt, optIdx) => {
                           const isOptionSelected = selected === optIdx;
+                          const showResult = hasAnswered;
+                          const isCorrectOpt = optIdx === q.correctIndex;
                           return (
                             <button
                               key={optIdx}
                               type="button"
-                              onClick={() => setQuizAnswers(prev => ({ ...prev, [q.id]: optIdx }))}
+                              onClick={() => !hasAnswered && setQuizAnswers(prev => ({ ...prev, [q.id]: optIdx }))}
                               style={{
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '0.75rem',
                                 padding: '0.65rem 0.85rem',
                                 borderRadius: 'var(--radius-sm)',
-                                background: isOptionSelected ? 'var(--bg-surface-secondary)' : 'var(--bg-surface)',
+                                background: showResult && isCorrectOpt
+                                  ? 'rgba(34,197,94,0.08)'
+                                  : showResult && isOptionSelected && !isCorrectOpt
+                                  ? 'rgba(239,68,68,0.08)'
+                                  : isOptionSelected ? 'var(--bg-surface-secondary)' : 'var(--bg-surface)',
                                 border: '1px solid',
-                                borderColor: isOptionSelected ? 'var(--text-primary)' : 'var(--border)',
+                                borderColor: showResult && isCorrectOpt
+                                  ? 'var(--status-passed)'
+                                  : showResult && isOptionSelected && !isCorrectOpt
+                                  ? 'var(--status-failed)'
+                                  : isOptionSelected ? 'var(--text-primary)' : 'var(--border)',
                                 color: 'var(--text-primary)',
                                 textAlign: 'left',
                                 fontSize: '0.85rem',
-                                cursor: 'pointer'
+                                cursor: hasAnswered ? 'default' : 'pointer'
                               }}
                             >
                               <span style={{
-                                width: 20,
-                                height: 20,
+                                width: 20, height: 20,
                                 borderRadius: '50%',
                                 border: '1px solid',
                                 borderColor: isOptionSelected ? 'var(--text-primary)' : 'var(--border)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '0.7rem',
-                                fontFamily: 'var(--font-mono)'
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: '0.7rem', fontFamily: 'var(--font-mono)', flexShrink: 0
                               }}>
                                 {String.fromCharCode(65 + optIdx)}
                               </span>
-                              <span>{opt}</span>
+                              <span style={{ flex: 1 }}>{opt}</span>
+                              {showResult && isCorrectOpt && <CheckCircle2 size={14} color="var(--status-passed)" />}
+                              {showResult && isOptionSelected && !isCorrectOpt && <XCircle size={14} color="var(--status-failed)" />}
                             </button>
                           );
                         })}
@@ -1363,12 +1418,8 @@ export default function CourseWorkspacePage() {
                           color: 'var(--text-secondary)',
                           lineHeight: 1.5
                         }}>
-                          <p style={{ fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 0.25rem' }}>
-                            Explanation & Rationale:
-                          </p>
-                          <p style={{ margin: 0 }}>
-                            {q.explanation}
-                          </p>
+                          <p style={{ fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 0.25rem' }}>Explanation & Rationale:</p>
+                          <p style={{ margin: 0 }}>{q.explanation || 'This is the correct answer based on course material.'}</p>
                         </div>
                       )}
                     </div>
@@ -1384,14 +1435,58 @@ export default function CourseWorkspacePage() {
               <div style={{ marginBottom: '1.5rem' }}>
                 <p className="overline-editorial" style={{ marginBottom: '0.35rem' }}>Reference Card</p>
                 <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                  Java Collections Quick Reference
+                  {course?.title ? `${course.title} — Quick Reference` : 'Course Quick Reference'}
                 </h2>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  Condensed reference guide of time complexities, interface hierarchies, and best practices.
+                  Condensed reference guide: key terms, syntax, commands, and best practices.
                 </p>
               </div>
 
-              {/* Complexity Table */}
+              {/* AI-generated cheat sheet sections */}
+              {cheatSheetSections && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '1.75rem' }}>
+                  {cheatSheetSections.map((section, sIdx) => (
+                    <div
+                      key={sIdx}
+                      style={{
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-sm)',
+                        overflow: 'hidden'
+                      }}
+                    >
+                      <div style={{ padding: '0.85rem 1.25rem', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                        <h3 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{section.title}</h3>
+                        {section.type && (
+                          <span style={{ fontSize: '0.65rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{section.type}</span>
+                        )}
+                      </div>
+                      <div style={{ padding: '0.85rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {(section.items || []).map((item, iIdx) => (
+                          <div key={iIdx} style={{
+                            display: 'grid',
+                            gridTemplateColumns: item.example ? '1fr 1.5fr 1fr' : '1fr 2fr',
+                            gap: '0.75rem',
+                            padding: '0.5rem 0',
+                            borderBottom: iIdx < section.items.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                            alignItems: 'baseline'
+                          }}>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)' }}>{item.term}</span>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>{item.definition}</span>
+                            {item.example && (
+                              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)', background: 'var(--bg-surface-secondary)', padding: '0.15rem 0.4rem', borderRadius: 'var(--radius-sm)' }}>{item.example}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Static fallback if no AI cheat sheet was generated */}
+              {!cheatSheetSections && (
+                <>
               <div style={{
                 background: 'var(--bg-card)',
                 border: '1px solid var(--border)',
@@ -1456,7 +1551,7 @@ export default function CourseWorkspacePage() {
                     When to Choose LinkedList
                   </h4>
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                    Use as a `Deque` or queue where frequent head/tail insertion and removal are required without resizing overhead.
+                    Use as a Deque or queue where frequent head/tail insertion and removal are required without resizing overhead.
                   </p>
                 </div>
 
@@ -1465,10 +1560,12 @@ export default function CourseWorkspacePage() {
                     HashMap hashCode() Contract
                   </h4>
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                    Always override `hashCode()` whenever `equals()` is overridden. Equal objects must yield identical hash codes.
+                    Always override hashCode() whenever equals() is overridden. Equal objects must yield identical hash codes.
                   </p>
                 </div>
               </div>
+                </>
+              )}
             </div>
           )}
 

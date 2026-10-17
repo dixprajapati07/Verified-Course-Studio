@@ -5,7 +5,7 @@
 import Groq from "groq-sdk";
 
 const getApiKey = () => process.env.GROQ_API_KEY;
-const getModel = () => process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+const getModel = () => process.env.GROQ_MODEL || "openai/gpt-oss-120b";
 
 export function isGroqConfigured() {
   return !!getApiKey();
@@ -30,6 +30,7 @@ export async function callGroq(prompt, timeoutMs = 60000) {
   const model = getModel();
   const start = Date.now();
 
+  const model = getModel();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 

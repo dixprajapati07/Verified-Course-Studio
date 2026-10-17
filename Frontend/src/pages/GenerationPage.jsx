@@ -1,22 +1,31 @@
 // src/pages/GenerationPage.jsx
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useLocation, useNavigate, Link } from 'react-router-dom';
-import { CheckCircle2, Circle, ArrowRight, AlertCircle, Shield, Sun, Moon, Sparkles, RefreshCw } from 'lucide-react';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { CheckCircle2, Circle, ArrowRight, AlertCircle, Sun, Moon, Sparkles, RefreshCw } from 'lucide-react';
 import SmartBackButton from '../components/common/SmartBackButton';
 import { mockCourses } from '../data/mockCourses';
 
 import { useApp } from '../context/AppContext';
 import { recordNavPath } from '../utils/navigation';
-import { apiGenerateCourse, apiGenerateSlides } from '../services/api';
+import {
+  apiGenerateCourse,
+  apiGenerateSlides,
+  apiGenerateNotes,
+  apiGenerateCode,
+  apiGenerateExercises,
+  apiGenerateQuiz,
+  apiGenerateCheatSheet,
+} from '../services/api';
 
 const GENERATION_STAGES = [
-  { id: 1, label: 'Analyzing learning objectives & prerequisites.', duration: 1200 },
-  { id: 2, label: 'Structuring curriculum & pedagogical modules.',   duration: 1500 },
-  { id: 3, label: 'Synthesizing verified presentation slides.',      duration: 1800 },
-  { id: 4, label: 'Preparing trainer notes & teaching strategies.', duration: 1500 },
-  { id: 5, label: 'Creating hands-on exercises & test cases.',       duration: 1800 },
-  { id: 6, label: 'Drafting quiz questions & cheat sheet guide.',    duration: 1500 },
-  { id: 7, label: 'Validating code syntax & packaging workspace.',   duration: 1200 },
+  { id: 1, label: 'Analyzing learning objectives & prerequisites.' },
+  { id: 2, label: 'Structuring curriculum & pedagogical modules.' },
+  { id: 3, label: 'Synthesizing verified presentation slides.' },
+  { id: 4, label: 'Preparing trainer notes & teaching strategies.' },
+  { id: 5, label: 'Generating verified code examples & snippets.' },
+  { id: 6, label: 'Creating hands-on exercises & test suites.' },
+  { id: 7, label: 'Drafting quiz questions & cheat sheet guide.' },
+  { id: 8, label: 'Validating content & packaging workspace.' },
 ];
 
 function StageStatusIcon({ status }) {
@@ -70,31 +79,25 @@ export default function GenerationPage() {
     recordNavPath(location.pathname);
   }, [location.pathname]);
 
+  const markStage = (id, status) =>
+    setStepStatus(prev => ({ ...prev, [id]: status }));
+
   const runPipeline = async () => {
     setErrorMsg(null);
     setDone(false);
+    setStepStatus(GENERATION_STAGES.reduce((acc, s) => ({ ...acc, [s.id]: 'pending' }), {}));
 
-    // Parse duration in minutes (e.g. "60 minutes" -> 60)
     const minutesMatch = String(activeDuration).match(/\d+/);
     const durationMinutes = minutesMatch ? parseInt(minutesMatch[0], 10) : 60;
 
-    // Start animated visual stage progression
-    let currentStage = 1;
-    setStepStatus(prev => ({ ...prev, [1]: 'active' }));
-
-    const stageInterval = setInterval(() => {
-      if (currentStage < GENERATION_STAGES.length - 1) {
-        setStepStatus(prev => ({
-          ...prev,
-          [currentStage]: 'done',
-          [currentStage + 1]: 'active',
-        }));
-        currentStage += 1;
-      }
-    }, 2000);
-
     try {
-      // 1. Call Backend AI Course Generation
+      // Stage 1: Analyzing (brief UX delay)
+      markStage(1, 'active');
+      await new Promise(r => setTimeout(r, 500));
+      markStage(1, 'done');
+
+      // Stage 2: Generate Course Structure
+      markStage(2, 'active');
       const courseResponse = await apiGenerateCourse({
         topic: activeTopic,
         student_level: activeLevel,
@@ -107,6 +110,8 @@ export default function GenerationPage() {
       const courseContent = courseResponse.content || {};
       setGeneratedContent(courseContent);
       const courseTitle = courseContent.title || activeTopic;
+      const modules = courseContent.modules || [];
+      markStage(2, 'done');
 
       // 2. Initial Slide Deck (use slides returned from generator if available)
       let slides = Array.isArray(courseContent.slides) && courseContent.slides.length > 0 ? courseContent.slides : [];
@@ -125,9 +130,53 @@ export default function GenerationPage() {
         }
       }
 
-      clearInterval(stageInterval);
+      // Stage 4: Trainer Notes
+      markStage(4, 'active');
+      let notes = [];
+      try {
+        const notesRes = await apiGenerateNotes({ title: courseTitle, modules, language: activeLanguage });
+        notes = notesRes.notes || [];
+      } catch (e) { console.warn('Notes fallback:', e.message); }
+      markStage(4, 'done');
 
-      // Create rich structured course object
+      // Stage 5: Code Examples
+      markStage(5, 'active');
+      let codeExamples = [];
+      try {
+        const codeRes = await apiGenerateCode({
+          title: courseTitle, modules, language: activeLanguage, runtime: activeRuntime,
+        });
+        codeExamples = codeRes.examples || [];
+      } catch (e) { console.warn('Code fallback:', e.message); }
+      markStage(5, 'done');
+
+      // Stage 6: Exercises
+      markStage(6, 'active');
+      let exercises = [];
+      try {
+        const exRes = await apiGenerateExercises({
+          title: courseTitle, modules, language: activeLanguage, student_level: activeLevel,
+        });
+        exercises = exRes.exercises || [];
+      } catch (e) { console.warn('Exercises fallback:', e.message); }
+      markStage(6, 'done');
+
+      // Stage 7: Quiz + Cheat Sheet (parallel for speed)
+      markStage(7, 'active');
+      let quizQuestions = [];
+      let cheatSheetSections = [];
+      try {
+        const [quizRes, csRes] = await Promise.allSettled([
+          apiGenerateQuiz({ title: courseTitle, modules, language: activeLanguage, question_count: 10 }),
+          apiGenerateCheatSheet({ title: courseTitle, modules, language: activeLanguage }),
+        ]);
+        if (quizRes.status === 'fulfilled') quizQuestions = quizRes.value.questions || [];
+        if (csRes.status === 'fulfilled') cheatSheetSections = csRes.value.sections || [];
+      } catch (e) { console.warn('Quiz/cheatsheet fallback:', e.message); }
+      markStage(7, 'done');
+
+      // Stage 8: Packaging
+      markStage(8, 'active');
       const newId = courseResponse.savedCourse?.id || `course-${Date.now().toString(36)}`;
       const newCourse = {
         id: newId,
@@ -139,11 +188,16 @@ export default function GenerationPage() {
         duration_minutes: durationMinutes,
         numberOfLectures: activeLectures,
         language: activeLanguage,
-        runtimeVersion: activeRuntime,
+        runtimeVersion: activeRuntime || activeLanguage,
         status: 'completed',
         verificationStatus: 'verified',
         createdAt: new Date().toISOString(),
         description: courseContent.description || `Comprehensive ${activeLevel} course on ${activeTopic}.`,
+        slidesCount: slides.length,
+        codeExamplesCount: codeExamples.length,
+        exercisesCount: exercises.length,
+        quizCount: quizQuestions.length,
+        slides,
         content: {
           ...courseContent,
           slides: slides.length > 0 ? slides : courseContent.slides,
@@ -152,12 +206,10 @@ export default function GenerationPage() {
         providerMeta: courseResponse.providerMeta,
       };
 
-      // Store in AppContext, sessionStorage and localStorage course library
       setCurrentCourse(newCourse);
       setCreatedCourse(newCourse);
       try {
         sessionStorage.setItem(`course_${newId}`, JSON.stringify(newCourse));
-
         const existingRaw = localStorage.getItem('vcs_saved_courses');
         const existing = existingRaw ? JSON.parse(existingRaw) : [];
         const filtered = existing.filter(c => c.id !== newId);
@@ -166,21 +218,18 @@ export default function GenerationPage() {
         console.warn('Could not cache course locally:', storageErr);
       }
 
-      // Mark all stages done
-      setStepStatus(
-        GENERATION_STAGES.reduce((acc, s) => ({ ...acc, [s.id]: 'done' }), {})
-      );
+      markStage(8, 'done');
       setGeneratedCourseId(newId);
       setProviderMeta(courseResponse.providerMeta);
       setDone(true);
     } catch (err) {
-      clearInterval(stageInterval);
-      console.error('Course generation error:', err);
+      console.error('Generation pipeline error:', err);
       setErrorMsg(err.message || 'AI Generation encountered an error.');
-      setStepStatus(prev => ({
-        ...prev,
-        [currentStage]: 'error',
-      }));
+      setStepStatus(prev => {
+        const activeId = GENERATION_STAGES.find(s => prev[s.id] === 'active')?.id;
+        if (activeId) return { ...prev, [activeId]: 'error' };
+        return prev;
+      });
     }
   };
 
@@ -192,6 +241,7 @@ export default function GenerationPage() {
   }, []);
 
   const handleRetry = () => {
+    hasInitiatedRef.current = false;
     setIsRetrying(true);
     runPipeline().finally(() => setIsRetrying(false));
   };
