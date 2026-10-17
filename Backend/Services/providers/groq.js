@@ -27,6 +27,7 @@ function buildClient() {
  */
 export async function callGroq(prompt, timeoutMs = 60000) {
   const client = buildClient();
+  const model = getModel();
   const start = Date.now();
 
   const controller = new AbortController();
@@ -35,7 +36,7 @@ export async function callGroq(prompt, timeoutMs = 60000) {
   try {
     const completion = await client.chat.completions.create(
       {
-        model: getModel(),
+        model,
         messages: [
           {
             role: "system",
@@ -65,7 +66,7 @@ export async function callGroq(prompt, timeoutMs = 60000) {
 
     return {
       provider: "groq",
-      model: GROQ_MODEL,
+      model,
       status: "success",
       content: parsed,
       durationMs: Date.now() - start,
@@ -78,7 +79,7 @@ export async function callGroq(prompt, timeoutMs = 60000) {
     const isRateLimit = err.status === 429;
     return {
       provider: "groq",
-      model: GROQ_MODEL,
+      model,
       status: isTimeout ? "timeout" : isRateLimit ? "rate_limited" : "error",
       content: null,
       durationMs: Date.now() - start,

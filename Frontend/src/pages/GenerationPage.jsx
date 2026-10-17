@@ -3,7 +3,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useLocation, useNavigate, Link } from 'react-router-dom';
 import { CheckCircle2, Circle, ArrowRight, AlertCircle, Shield, Sun, Moon, Sparkles, RefreshCw } from 'lucide-react';
 import SmartBackButton from '../components/common/SmartBackButton';
-import { api } from '../api';
+import { mockCourses } from '../data/mockCourses';
+
 import { useApp } from '../context/AppContext';
 import { recordNavPath } from '../utils/navigation';
 import { apiGenerateCourse, apiGenerateSlides } from '../services/api';
@@ -33,8 +34,8 @@ function StageStatusIcon({ status }) {
 
 export default function GenerationPage() {
   const { courseId: routeCourseId } = useParams();
-  const { state } = useLocation();
   const location = useLocation();
+  const { state } = location;
   const navigate = useNavigate();
   const { guestSession, draftCourse, isDark, toggleTheme, openAuthModal, setCurrentCourse } = useApp();
 
@@ -46,6 +47,9 @@ export default function GenerationPage() {
   const activeDuration = state?.duration || draftCourse?.duration || fallbackCourse.duration;
   const activeLanguage = state?.language || draftCourse?.language || fallbackCourse.language;
   const activeRuntime = state?.runtime || draftCourse?.runtime || fallbackCourse.runtimeVersion;
+  const activeLectures = Number(state?.numberOfLectures || draftCourse?.numberOfLectures) || 4;
+  const parsedDuration = parseInt(String(activeDuration).replace(/\D/g, ''), 10) || 60;
+  const timePerLecture = Math.round(parsedDuration / Math.max(1, activeLectures));
 
   const [stepStatus, setStepStatus] = useState(() =>
     GENERATION_STAGES.reduce((acc, s) => ({ ...acc, [s.id]: 'pending' }), {})
@@ -53,8 +57,9 @@ export default function GenerationPage() {
   const [done, setDone] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
   const [providerMeta, setProviderMeta] = useState(null);
-    const [generatedContent, setGeneratedContent] = useState(null);
-    const activeObjectives = state?.learningObjectives || draftCourse?.learningObjectives || '';
+  const [generatedContent, setGeneratedContent] = useState(null);
+  const [createdCourse, setCreatedCourse] = useState(null);
+  const activeObjectives = state?.learningObjectives || draftCourse?.learningObjectives || '';
   const [generatedCourseId, setGeneratedCourseId] = useState(routeCourseId || 'course-001');
   const [isRetrying, setIsRetrying] = useState(false);
 
@@ -96,25 +101,28 @@ export default function GenerationPage() {
         duration_minutes: durationMinutes,
         language: activeLanguage,
         learning_objectives: activeObjectives,
+        number_of_lectures: activeLectures,
       });
 
-      const courseContent = courseResponse.content;
+      const courseContent = courseResponse.content || {};
       setGeneratedContent(courseContent);
       const courseTitle = courseContent.title || activeTopic;
 
-      // 2. Generate Initial Slide Deck
-      let slides = [];
-      try {
-        const slidesResponse = await apiGenerateSlides({
-          title: courseTitle,
-          description: courseContent.description || '',
-          modules: courseContent.modules || [],
-          language: activeLanguage,
-          slide_count: 8,
-        });
-        slides = slidesResponse.slides || [];
-      } catch (slideErr) {
-        console.warn('Slide generation non-fatal fallback:', slideErr.message);
+      // 2. Initial Slide Deck (use slides returned from generator if available)
+      let slides = Array.isArray(courseContent.slides) && courseContent.slides.length > 0 ? courseContent.slides : [];
+      if (!slides.length) {
+        try {
+          const slidesResponse = await apiGenerateSlides({
+            title: courseTitle,
+            description: courseContent.description || '',
+            modules: courseContent.modules || [],
+            language: activeLanguage,
+            slide_count: 8,
+          });
+          slides = slidesResponse.slides || [];
+        } catch (slideErr) {
+          console.warn('Slide generation non-fatal fallback:', slideErr.message);
+        }
       }
 
       clearInterval(stageInterval);
@@ -129,6 +137,7 @@ export default function GenerationPage() {
         student_level: activeLevel,
         duration: `${durationMinutes} minutes`,
         duration_minutes: durationMinutes,
+        numberOfLectures: activeLectures,
         language: activeLanguage,
         runtimeVersion: activeRuntime,
         status: 'completed',
@@ -137,14 +146,15 @@ export default function GenerationPage() {
         description: courseContent.description || `Comprehensive ${activeLevel} course on ${activeTopic}.`,
         content: {
           ...courseContent,
-          slides: slides.length > 0 ? slides : undefined,
+          slides: slides.length > 0 ? slides : courseContent.slides,
         },
-        slides: slides,
+        slides: slides.length > 0 ? slides : courseContent.slides,
         providerMeta: courseResponse.providerMeta,
       };
 
       // Store in AppContext, sessionStorage and localStorage course library
       setCurrentCourse(newCourse);
+      setCreatedCourse(newCourse);
       try {
         sessionStorage.setItem(`course_${newId}`, JSON.stringify(newCourse));
 
@@ -418,7 +428,7 @@ export default function GenerationPage() {
                   fontWeight: status === 'active' ? 500 : 400,
                   flex: 1
                 }}>
-                  {step.label}
+                  {stage.label}
                 </span>
 
                 <span style={{
@@ -479,62 +489,7 @@ export default function GenerationPage() {
           </section>
         )}
 
-        {/* Error State */}
-        {error && (
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.75rem',
-            padding: '1.25rem',
-            background: 'rgba(239, 68, 68, 0.1)',
-            border: '1px solid var(--status-failed)',
-            borderRadius: 'var(--radius-sm)',
-            marginBottom: '2rem'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <AlertTriangle size={18} color="var(--status-failed)" />
-              <strong style={{ color: 'var(--status-failed)', fontSize: '0.875rem' }}>
-                {draft ? 'Generated — but Save Failed' : 'Course Generation Failed'}
-              </strong>
-            </div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: 1.5 }}>
-              {error}
-            </p>
-            {draft ? (
-              // Course was generated, only the DB save failed — retry without Gemini
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <button
-                  className="btn-primary"
-                  style={{ gap: '0.4rem', fontSize: '0.825rem' }}
-                  onClick={retrySave}
-                  disabled={retryingSave}
-                >
-                  {retryingSave
-                    ? <><div className="spinner" style={{ width: 13, height: 13 }} /> Saving…</>
-                    : <><RefreshCw size={13} /> Retry Save (no re-generation)</>}
-                </button>
-                <button
-                  className="btn-secondary"
-                  style={{ gap: '0.4rem', fontSize: '0.825rem' }}
-                  onClick={startGeneration}
-                  disabled={retryingSave}
-                >
-                  <RefreshCw size={13} /> Re-generate from scratch
-                </button>
-              </div>
-            ) : (
-              <div>
-                <button
-                  className="btn-secondary"
-                  style={{ gap: '0.4rem', fontSize: '0.825rem' }}
-                  onClick={startGeneration}
-                >
-                  <RefreshCw size={13} /> Retry Generation
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+
 
         {/* Completion CTA */}
         {done && courseId && (

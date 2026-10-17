@@ -6,7 +6,6 @@ import Header from '../components/layout/Header';
 import Footer from '../components/layout/Footer';
 import Modal from '../components/common/Modal';
 import { useApp } from '../context/AppContext';
-import { apiGetCourses } from '../services/api';
 
 const statusLabels = {
   completed:  { label: 'Completed',  cls: 'badge-green' },
@@ -147,56 +146,57 @@ function CourseCard({ course, onOpen, onDelete }) {
 }
 
 export default function DashboardPage() {
-  const [courses, setCourses] = useState(() => {
-    try {
-      const savedRaw = localStorage.getItem('vcs_saved_courses');
-      const saved = savedRaw ? JSON.parse(savedRaw) : [];
-      const map = new Map();
-      saved.forEach(c => map.set(c.id, c));
-      mockCourses.forEach(c => {
-        if (!map.has(c.id)) map.set(c.id, c);
-      });
-      return Array.from(map.values());
-    } catch {
-      return mockCourses;
-    }
-  });
-
+  const [courses, setCourses]     = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState(null);
   const [search, setSearch]       = useState('');
   const [filterStatus, setFilter] = useState('all');
   const [deleteTarget, setDelete] = useState(null);
   const navigate = useNavigate();
   const { addToast } = useApp();
 
-  useEffect(() => {
-    let isMounted = true;
-    apiGetCourses()
-      .then(res => {
-        if (isMounted && res?.courses && Array.isArray(res.courses)) {
-          setCourses(prev => {
-            const map = new Map();
-            res.courses.forEach(c => map.set(c.id, c));
-            prev.forEach(c => {
-              if (!map.has(c.id)) map.set(c.id, c);
-            });
-            return Array.from(map.values());
-          });
+  const fetchCourses = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api.getCourses();
+      setCourses(data.courses || []);
+    } catch (err) {
+      console.error("Failed to load courses:", err);
+      try {
+        const savedRaw = localStorage.getItem('vcs_saved_courses');
+        if (savedRaw) {
+          const saved = JSON.parse(savedRaw);
+          if (Array.isArray(saved) && saved.length > 0) {
+            setCourses(saved);
+            return;
+          }
         }
-      })
-      .catch(() => {});
-    return () => { isMounted = false; };
+      } catch (e) {}
+      setError(err.message || "Failed to load courses");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCourses();
   }, []);
 
   const filtered = courses.filter(c => {
-    const matchSearch = (c.title || '').toLowerCase().includes(search.toLowerCase()) ||
-                        (c.topic || '').toLowerCase().includes(search.toLowerCase());
-    const matchFilter = filterStatus === 'all' || c.status === filterStatus;
+    const title = c.title || '';
+    const topic = c.topic || '';
+    const matchSearch = title.toLowerCase().includes(search.toLowerCase()) ||
+                        topic.toLowerCase().includes(search.toLowerCase());
+    const matchFilter = filterStatus === 'all' || (c.status || 'completed') === filterStatus;
     return matchSearch && matchFilter;
   });
 
-  const handleDelete = () => {
-    setCourses(prev => {
-      const updated = prev.filter(c => c.id !== deleteTarget.id);
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await api.deleteCourse(deleteTarget.id);
+      setCourses(prev => prev.filter(c => c.id !== deleteTarget.id));
       try {
         const savedRaw = localStorage.getItem('vcs_saved_courses');
         if (savedRaw) {
@@ -204,10 +204,12 @@ export default function DashboardPage() {
           localStorage.setItem('vcs_saved_courses', JSON.stringify(saved));
         }
       } catch {}
-      return updated;
-    });
-    addToast(`"${deleteTarget.title}" deleted.`, 'info');
-    setDelete(null);
+      addToast(`"${deleteTarget.title}" deleted.`, 'info');
+    } catch (err) {
+      addToast(`Failed to delete course: ${err.message}`, 'error');
+    } finally {
+      setDelete(null);
+    }
   };
 
   return (

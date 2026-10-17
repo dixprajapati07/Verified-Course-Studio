@@ -6,7 +6,7 @@
 
 import express from "express";
 import { getSupabase } from "../config/supabase.js";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, getDevUser } from "../middleware/auth.js";
 import {
   generateCourse,
   generateSlides,
@@ -50,6 +50,8 @@ router.post("/generate-course", async (req, res) => {
       duration_minutes = 60,
       language = "English",
       learning_objectives = "",
+      number_of_lectures,
+      numberOfLectures,
       parallel = false,
     } = req.body;
 
@@ -63,29 +65,40 @@ router.post("/generate-course", async (req, res) => {
       return res.status(400).json({ error: "Duration must be between 15 and 600 minutes" });
     }
 
+    const lectureCount = Number(number_of_lectures || numberOfLectures) || 4;
+
     const { content, providerMeta } = await generateCourse({
       topic: topic.trim(),
       studentLevel: student_level,
       durationMinutes: duration_minutes,
       language: language.trim(),
       learningObjectives: learning_objectives,
+      numberOfLectures: lectureCount,
       parallel: !!parallel,
     });
 
-    // Save to Supabase only if user is authenticated
+    // Save to Supabase (authenticated user or dev user)
     let savedCourse = null;
     const authHeader = req.headers.authorization;
     if (authHeader?.startsWith("Bearer ")) {
       try {
         const supabase = getSupabase();
-        const token = authHeader.slice(7);
-        const { data: userData } = await supabase.auth.getUser(token);
-        if (userData?.user) {
+        const token = authHeader.slice(7).trim();
+        let userId = null;
+        if (token === "dev-token" || token.startsWith("mock-") || token === "guest-token") {
+          const devUser = await getDevUser();
+          userId = devUser?.id;
+        } else {
+          const { data: userData } = await supabase.auth.getUser(token);
+          userId = userData?.user?.id;
+        }
+
+        if (userId) {
           const { data, error } = await supabase
             .from("courses")
             .insert({
-              user_id: userData.user.id,
-              title: content.title,
+              user_id: userId,
+              title: content.title || topic.trim(),
               topic: topic.trim(),
               student_level,
               duration_minutes,
@@ -107,6 +120,7 @@ router.post("/generate-course", async (req, res) => {
       message: "Course generated successfully",
       content,
       savedCourse,
+      course: savedCourse,
       providerMeta: {
         used: providerMeta.used,
         all: providerMeta.all.map((r) => ({

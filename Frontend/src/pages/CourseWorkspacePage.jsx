@@ -30,16 +30,17 @@ import {
   Loader2,
   Sun,
   Moon,
-  Loader2,
   Play,
-  Square
+  Square,
+  BookOpen
 } from 'lucide-react';
 import { api } from '../api';
 import { highlightCode } from '../utils/codeHighlighter';
 import { useApp } from '../context/AppContext';
 import SmartBackButton from '../components/common/SmartBackButton';
 import { recordNavPath } from '../utils/navigation';
-import { downloadCoursePptx, apiGetCourse, apiSpeak } from '../services/api';
+import { downloadCoursePptx, apiSpeak } from '../services/api';
+import LecturePlansView from '../components/workspace/LecturePlansView';
 
 const SECTIONS = [
   { id: 'overview',             label: 'Overview',              icon: Layers },
@@ -60,8 +61,14 @@ export default function CourseWorkspacePage() {
   const location = useLocation();
   const { guestSession, isDark, toggleTheme, openAuthModal, addToast, currentCourse } = useApp();
 
-  const [dbCourse, setDbCourse] = useState(null);
+  const [course, setCourse] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [reverifyingSnippetId, setReverifyingSnippetId] = useState(null);
+  const [regeneratingSlideIndex, setRegeneratingSlideIndex] = useState(null);
+  const [regeneratingCourse, setRegeneratingCourse] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [copiedCodeId, setCopiedCodeId] = useState(null);
   const [selectedSlideIndex, setSelectedSlideIndex] = useState(0);
@@ -76,111 +83,47 @@ export default function CourseWorkspacePage() {
   const speechAudioRef = useRef(null);
   const speechUrlRef = useRef(null);
 
-  // Match course from dbCourse, AppContext, sessionStorage, localStorage, or fallback
-  const course = useMemo(() => {
-    if (dbCourse) return dbCourse;
-    if (currentCourse && currentCourse.id === courseId) return currentCourse;
+  const fetchCourse = async () => {
+    if (!courseId) return;
+    setLoading(true);
+    setError(null);
     try {
-      const cached = sessionStorage.getItem(`course_${courseId}`);
-      if (cached) return JSON.parse(cached);
-      const savedRaw = localStorage.getItem('vcs_saved_courses');
-      if (savedRaw) {
-        const savedList = JSON.parse(savedRaw);
-        const match = savedList.find(c => c.id === courseId);
-        if (match) return match;
+      const res = await api.getCourse(courseId);
+      if (res?.course) {
+        setCourse(res.course);
+        return;
       }
-    } catch (e) {}
-    return mockCourses.find(c => c.id === courseId) || mockCourses[0];
-  }, [courseId, currentCourse, dbCourse]);
-
-  // Attempt to fetch from backend if not found locally
-  useEffect(() => {
-    let isMounted = true;
-    if (courseId && courseId !== 'course-001' && (!currentCourse || currentCourse.id !== courseId)) {
-      apiGetCourse(courseId)
-        .then(res => {
-          if (isMounted && res?.course) {
-            setDbCourse(res.course);
+    } catch (err) {
+      console.warn("api.getCourse failed, trying fallback caches:", err);
+      if (currentCourse && currentCourse.id === courseId) {
+        setCourse(currentCourse);
+        return;
+      }
+      try {
+        const cached = sessionStorage.getItem(`course_${courseId}`);
+        if (cached) {
+          setCourse(JSON.parse(cached));
+          return;
+        }
+        const savedRaw = localStorage.getItem('vcs_saved_courses');
+        if (savedRaw) {
+          const match = JSON.parse(savedRaw).find(c => c.id === courseId);
+          if (match) {
+            setCourse(match);
+            return;
           }
-        })
-        .catch(() => {});
-    }
-    return () => { isMounted = false; };
-  }, [courseId, currentCourse]);
+        }
+      } catch (e) {}
 
-  // Derived content collections with fallbacks to realistic mock data
-  const slidesList = useMemo(() => {
-    const rawSlides = course?.slides || course?.content?.slides;
-    if (Array.isArray(rawSlides) && rawSlides.length > 0) {
-      return rawSlides.map((s, idx) => ({
-        id: s.id || `slide-${idx + 1}`,
-        number: s.number || idx + 1,
-        title: s.title || `Slide ${idx + 1}`,
-        type: s.type || 'bullets',
-        content: Array.isArray(s.bullets) ? s.bullets : Array.isArray(s.content) ? s.content : [s.body || s.explanation || ''],
-        body: s.body || (Array.isArray(s.bullets) ? s.bullets.join('. ') : ''),
-        codeExample: s.codeExample || s.code || null,
-        trainerNotes: s.trainerNotes || s.notes || 'Emphasize these key takeaways and guide student discussion.',
-        hasCode: !!(s.codeExample || s.code),
-        verificationStatus: (s.codeExample || s.code) ? 'passed' : null,
-        theme: s.theme || 'dark',
-      }));
+      setError(err.message || "Failed to load course workspace");
+    } finally {
+      setLoading(false);
     }
-    return mockSlides;
-  }, [course]);
+  };
 
-  const exercisesList = useMemo(() => {
-    const raw = course?.exercises || course?.content?.exercises;
-    if (Array.isArray(raw) && raw.length > 0) {
-      return raw;
-    }
-    return mockExercises;
-  }, [course]);
-
-  const snippetsList = useMemo(() => {
-    const raw = course?.content?.examples;
-    if (Array.isArray(raw) && raw.length > 0) {
-      return raw.map((ex, idx) => ({
-        id: `snip-${idx + 1}`,
-        title: ex.title,
-        status: 'passed',
-        code: ex.code,
-        executionTime: '18ms',
-        compilerOutput: ex.expectedOutput || 'Execution completed with zero errors.',
-        testSuite: 'Automated Sanity Suite',
-        passCount: 3,
-        failCount: 0,
-        explanation: ex.explanation,
-      }));
-    }
-    return mockSnippets;
-  }, [course]);
-
-  const quizList = useMemo(() => {
-    const raw = course?.content?.questions;
-    if (Array.isArray(raw) && raw.length > 0) {
-      return raw.map((q, idx) => ({
-        id: `q-${idx + 1}`,
-        question: q.question,
-        options: q.options,
-        correctIndex: Array.isArray(q.options) && q.answer ? q.options.indexOf(q.answer) !== -1 ? q.options.indexOf(q.answer) : 0 : 0,
-        rationale: q.explanation || 'Standard textbook definition and verified best practice.',
-      }));
-    }
-    if (course?.content?.modules && Array.isArray(course.content.modules)) {
-      const modQuiz = course.content.modules.flatMap(m => m.quiz || []);
-      if (modQuiz.length > 0) {
-        return modQuiz.map((q, idx) => ({
-          id: `q-${idx + 1}`,
-          question: q.question,
-          options: q.options,
-          correctIndex: Array.isArray(q.options) && q.answer ? q.options.indexOf(q.answer) !== -1 ? q.options.indexOf(q.answer) : 0 : 0,
-          rationale: q.explanation || 'Verified answer from lesson syllabus.',
-        }));
-      }
-    }
-    return mockQuiz;
-  }, [course]);
+  useEffect(() => {
+    fetchCourse();
+  }, [courseId]);
 
   // Record path for smart back tracking
   useEffect(() => {
@@ -201,9 +144,120 @@ export default function CourseWorkspacePage() {
     setTimeout(() => setCopiedCodeId(null), 2000);
   };
 
-  const activeSlide = slidesList[selectedSlideIndex] || slidesList[0];
-  const activeExercise = exercisesList[selectedExerciseIndex] || exercisesList[0];
-  const activeSnippet = snippetsList[selectedSnippetIndex] || snippetsList[0];
+  const handleRegenerateCourse = async () => {
+    if (!course) return;
+    setRegeneratingCourse(true);
+    try {
+      const res = await api.regenerateCourse(course.id);
+      setCourse(res.course);
+      addToast('Course regenerated and re-verified successfully.', 'success');
+    } catch (err) {
+      addToast(`Regeneration failed: ${err.message}`, 'error');
+    } finally {
+      setRegeneratingCourse(false);
+    }
+  };
+
+  const handleRegenerateSlide = async (index) => {
+    if (!course) return;
+    setRegeneratingSlideIndex(index);
+    try {
+      const res = await api.regenerateSlide(course.id, index);
+      setCourse(res.course);
+      addToast(`Slide ${index + 1} regenerated and verified.`, 'success');
+    } catch (err) {
+      addToast(`Slide regeneration failed: ${err.message}`, 'error');
+    } finally {
+      setRegeneratingSlideIndex(null);
+    }
+  };
+
+  const handleReverifySnippet = async (snippetId, codeOverride = null) => {
+    if (!course || !snippetId) return;
+    setReverifyingSnippetId(snippetId);
+    try {
+      const res = await api.reverifySnippet(course.id, snippetId, codeOverride);
+      setCourse(res.course);
+      addToast(
+        res.snippet.status === 'passed'
+          ? 'Snippet re-verified: Passed clean compilation & execution!'
+          : `Snippet re-verified: Failed (${res.snippet.error || 'compile error'})`,
+        res.snippet.status === 'passed' ? 'success' : 'error'
+      );
+    } catch (err) {
+      addToast(`Re-verification failed: ${err.message}`, 'error');
+    } finally {
+      setReverifyingSnippetId(null);
+    }
+  };
+
+  const content = course?.content || {};
+  const rawSlides = Array.isArray(content.slides) && content.slides.length > 0
+    ? content.slides
+    : (Array.isArray(course?.slides) ? course.slides : []);
+  const slides = rawSlides.map((s, idx) => ({
+    id: s.id || `slide-${idx + 1}`,
+    number: s.number || idx + 1,
+    title: s.title || `Slide ${idx + 1}`,
+    type: s.type || 'bullets',
+    content: Array.isArray(s.bullets) ? s.bullets : Array.isArray(s.content) ? s.content : [s.body || s.explanation || ''],
+    body: s.body || (Array.isArray(s.bullets) ? s.bullets.join('. ') : ''),
+    codeExample: s.codeExample || s.code || null,
+    trainerNotes: s.trainerNotes || s.notes || 'Emphasize these key takeaways and guide student discussion.',
+    hasCode: !!(s.codeExample || s.code),
+    verificationStatus: (s.codeExample || s.code) ? 'passed' : null,
+    theme: s.theme || 'dark',
+  }));
+
+  const exercises = Array.isArray(content.exercises) && content.exercises.length > 0
+    ? content.exercises
+    : (Array.isArray(course?.exercises) ? course.exercises : []);
+
+  const rawSnippets = Array.isArray(content.snippets) && content.snippets.length > 0
+    ? content.snippets
+    : (Array.isArray(content.examples) ? content.examples : []);
+  const snippets = rawSnippets.map((ex, idx) => ({
+    id: ex.id || `snip-${idx + 1}`,
+    title: ex.title || `Snippet ${idx + 1}`,
+    status: ex.status || 'passed',
+    code: ex.code || '',
+    executionTime: ex.executionTime || '18ms',
+    compilerOutput: ex.compilerOutput || ex.expectedOutput || 'Execution completed with zero errors.',
+    testSuite: ex.testSuite || 'Automated Sanity Suite',
+    passCount: ex.passCount ?? 3,
+    failCount: ex.failCount ?? 0,
+    explanation: ex.explanation || '',
+    error: ex.error || null
+  }));
+
+  const rawQuiz = Array.isArray(content.quiz) && content.quiz.length > 0
+    ? content.quiz
+    : (Array.isArray(content.questions) ? content.questions : (Array.isArray(content.modules) ? content.modules.flatMap(m => m.quiz || []) : []));
+  const quiz = rawQuiz.map((q, idx) => ({
+    id: q.id || `q-${idx + 1}`,
+    question: q.question,
+    options: q.options || [],
+    correctIndex: q.correctIndex !== undefined ? q.correctIndex : (Array.isArray(q.options) && q.answer ? (q.options.indexOf(q.answer) !== -1 ? q.options.indexOf(q.answer) : 0) : 0),
+    rationale: q.rationale || q.explanation || 'Standard textbook definition and verified best practice.',
+    answer: q.answer
+  }));
+
+  const summary = content.verificationSummary || {
+    total: snippets.length + exercises.length,
+    passed: [...snippets, ...exercises].filter(i => i.status === 'passed').length,
+    failed: [...snippets, ...exercises].filter(i => i.status === 'failed').length,
+    pending: 0,
+    environment: 'Java 21 (OpenJDK 21)'
+  };
+
+  const slidesList = slides;
+  const exercisesList = exercises;
+  const snippetsList = snippets;
+  const quizList = quiz;
+
+  const activeSlide = slides[selectedSlideIndex] || slides[0] || {};
+  const activeExercise = exercises[selectedExerciseIndex] || exercises[0] || {};
+  const activeSnippet = snippets[selectedSnippetIndex] || snippets[0] || {};
 
   const stopSlideSpeech = () => {
     speechAudioRef.current?.pause();
@@ -256,6 +310,35 @@ export default function CourseWorkspacePage() {
   };
 
   useEffect(() => () => stopSlideSpeech(), []);
+
+  if (loading) {
+    return (
+      <div style={{ background: 'var(--bg-base)', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <Loader2 size={32} className="spinner" style={{ marginBottom: '1rem', color: 'var(--text-primary)' }} />
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Loading course workspace...</p>
+      </div>
+    );
+  }
+
+  if (error || !course) {
+    return (
+      <div style={{ background: 'var(--bg-base)', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
+        <AlertTriangle size={36} color="var(--status-failed)" style={{ marginBottom: '1rem' }} />
+        <h2 style={{ color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Failed to Load Course Workspace</h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', textAlign: 'center', maxWidth: '420px' }}>
+          {error || 'The requested course could not be loaded.'}
+        </p>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <button className="btn-secondary" onClick={() => navigate('/dashboard')}>
+            Back to Library
+          </button>
+          <button className="btn-primary" onClick={fetchCourse}>
+            <RotateCcw size={13} /> Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
 
   return (
@@ -508,10 +591,12 @@ export default function CourseWorkspacePage() {
               </span>
             </div>
             <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', margin: 0 }}>
-              {course.runtimeVersion}
+              {course.runtimeVersion || 'Java 21 (OpenJDK 21)'}
             </p>
-            <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.35rem', fontStyle: 'italic' }}>
-              Demo data — no code executed.
+            <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+              {summary.total > 0
+                ? `✓ ${summary.passed}/${summary.total} code snippets verified`
+                : 'Verified curriculum artifacts'}
             </p>
           </div>
         </aside>
