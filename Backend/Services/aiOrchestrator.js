@@ -183,7 +183,7 @@ export async function runSingle(
 export async function generate(prompt, options = {}) {
   const {
     parallel = false,
-    preferredProviders = ["gemini", "groq", "cloudflare"],
+    preferredProviders = ["groq", "cloudflare", "gemini"],
     schema = null,
     validate = null,
   } = options;

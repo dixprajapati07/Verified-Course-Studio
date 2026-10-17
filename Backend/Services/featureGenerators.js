@@ -106,7 +106,7 @@ Adjust content depth and number of modules to fit the ${durationMinutes}-minute 
   const { result, all } = await generate(prompt, {
     parallel,
     validate: validateCourse,
-    preferredProviders: ["gemini", "groq", "cloudflare"],
+    preferredProviders: ["groq", "cloudflare", "gemini"],
   });
 
   return { content: result.content, providerMeta: { used: result.provider, all } };
@@ -151,7 +151,7 @@ Keep bullets concise (max 6 per slide). Trainer notes should be 2-3 sentences.
   const { result, all } = await generate(prompt, {
     parallel,
     validate: validateSlides,
-    preferredProviders: ["gemini", "groq", "cloudflare"],
+    preferredProviders: ["groq", "cloudflare", "gemini"],
   });
 
   return { content: result.content, providerMeta: { used: result.provider, all } };
@@ -191,7 +191,7 @@ Produce one note entry per lesson across all modules.
   const { result, all } = await generate(prompt, {
     parallel,
     validate: validateNotes,
-    preferredProviders: ["gemini", "groq", "cloudflare"],
+    preferredProviders: ["groq", "cloudflare", "gemini"],
   });
 
   return { content: result.content, providerMeta: { used: result.provider, all } };
@@ -232,7 +232,7 @@ Include a comment header per example. Do NOT claim code is executed unless this 
   const { result, all } = await generate(prompt, {
     parallel,
     validate: validateCode,
-    preferredProviders: ["gemini", "groq", "cloudflare"],
+    preferredProviders: ["groq", "cloudflare", "gemini"],
   });
 
   return { content: result.content, providerMeta: { used: result.provider, all } };
@@ -275,7 +275,7 @@ Include beginner, intermediate, and advanced exercises. Aim for 4-6 total.
   const { result, all } = await generate(prompt, {
     parallel,
     validate: validateExercises,
-    preferredProviders: ["gemini", "groq", "cloudflare"],
+    preferredProviders: ["groq", "cloudflare", "gemini"],
   });
 
   return { content: result.content, providerMeta: { used: result.provider, all } };
@@ -319,7 +319,7 @@ Rules:
   const { result, all } = await generate(prompt, {
     parallel,
     validate: validateQuiz,
-    preferredProviders: ["gemini", "groq", "cloudflare"],
+    preferredProviders: ["groq", "cloudflare", "gemini"],
   });
 
   return { content: result.content, providerMeta: { used: result.provider, all } };
@@ -361,7 +361,7 @@ Keep each item concise. The cheat sheet should fit on 1-2 pages if printed.
   const { result, all } = await generate(prompt, {
     parallel,
     validate: validateCheatSheet,
-    preferredProviders: ["gemini", "groq", "cloudflare"],
+    preferredProviders: ["groq", "cloudflare", "gemini"],
   });
 
   return { content: result.content, providerMeta: { used: result.provider, all } };
@@ -406,7 +406,7 @@ NOTE: You are reviewing for educational quality only. Do NOT claim code was exec
 
   const { result, all } = await generate(prompt, {
     parallel: false, // verification review is always single provider
-    preferredProviders: ["gemini", "groq", "cloudflare"],
+    preferredProviders: ["groq", "cloudflare", "gemini"],
   });
 
   return {

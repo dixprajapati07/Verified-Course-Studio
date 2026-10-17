@@ -5,7 +5,7 @@
 import Groq from "groq-sdk";
 
 const getApiKey = () => process.env.GROQ_API_KEY;
-const getModel = () => process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+const getModel = () => process.env.GROQ_MODEL || "openai/gpt-oss-120b";
 
 export function isGroqConfigured() {
   return !!getApiKey();
@@ -29,13 +29,14 @@ export async function callGroq(prompt, timeoutMs = 60000) {
   const client = buildClient();
   const start = Date.now();
 
+  const model = getModel();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const completion = await client.chat.completions.create(
       {
-        model: getModel(),
+        model,
         messages: [
           {
             role: "system",
@@ -65,7 +66,7 @@ export async function callGroq(prompt, timeoutMs = 60000) {
 
     return {
       provider: "groq",
-      model: GROQ_MODEL,
+      model,
       status: "success",
       content: parsed,
       durationMs: Date.now() - start,
@@ -78,7 +79,7 @@ export async function callGroq(prompt, timeoutMs = 60000) {
     const isRateLimit = err.status === 429;
     return {
       provider: "groq",
-      model: GROQ_MODEL,
+      model,
       status: isTimeout ? "timeout" : isRateLimit ? "rate_limited" : "error",
       content: null,
       durationMs: Date.now() - start,

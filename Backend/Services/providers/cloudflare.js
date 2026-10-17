@@ -61,7 +61,7 @@ export async function callCloudflare(prompt, timeoutMs = 60000) {
       const isRateLimit = response.status === 429;
       return {
         provider: "cloudflare",
-        model: CF_MODEL,
+        model,
         status: isRateLimit ? "rate_limited" : "error",
         content: null,
         durationMs: Date.now() - start,
@@ -71,22 +71,27 @@ export async function callCloudflare(prompt, timeoutMs = 60000) {
     }
 
     const json = await response.json();
-    const text = json?.result?.response;
-    if (!text) throw new Error("Cloudflare returned an empty response");
-
-    // Cloudflare models may wrap JSON in markdown fences — strip them
-    const clean = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
+    const resp = json?.result?.response;
+    const choiceContent = json?.result?.choices?.[0]?.message?.content;
 
     let parsed;
-    try {
-      parsed = JSON.parse(clean);
-    } catch {
-      throw new Error("Cloudflare returned non-JSON response");
+    if (typeof resp === 'object' && resp !== null) {
+      parsed = resp;
+    } else {
+      const rawText = (typeof resp === 'string' ? resp : '') || (typeof choiceContent === 'string' ? choiceContent : '');
+      if (!rawText) throw new Error("Cloudflare returned an empty response");
+      // Cloudflare models may wrap JSON in markdown fences — strip them
+      const clean = rawText.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
+      try {
+        parsed = JSON.parse(clean);
+      } catch {
+        throw new Error("Cloudflare returned non-JSON response");
+      }
     }
 
     return {
       provider: "cloudflare",
-      model: CF_MODEL,
+      model,
       status: "success",
       content: parsed,
       durationMs: Date.now() - start,
@@ -98,7 +103,7 @@ export async function callCloudflare(prompt, timeoutMs = 60000) {
     const isTimeout = err.name === "AbortError" || err.message?.includes("aborted");
     return {
       provider: "cloudflare",
-      model: CF_MODEL,
+      model,
       status: isTimeout ? "timeout" : "error",
       content: null,
       durationMs: Date.now() - start,
