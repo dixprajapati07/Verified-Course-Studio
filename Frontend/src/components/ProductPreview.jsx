@@ -12,10 +12,11 @@ import {
   ShieldCheck, 
   ExternalLink,
   Sparkles,
-  Info
+  Info,
+  ArrowRight
 } from 'lucide-react';
 
-export default function ProductPreview() {
+export default function ProductPreview({ onOpenSlideNotes, onOpenCodePlayground }) {
   const [activeTab, setActiveTab] = useState('slides');
 
   const tabs = [
@@ -191,9 +192,14 @@ export default function ProductPreview() {
 
                 <div className="flex items-center justify-between text-xs text-slate-400">
                   <span>Speaker Notes: "Explain that @RestController handles serialization..."</span>
-                  <span className="text-violet-400 font-medium cursor-pointer hover:underline">
-                    Expand full notes →
-                  </span>
+                  {onOpenSlideNotes && (
+                    <button 
+                      onClick={onOpenSlideNotes}
+                      className="text-violet-400 font-medium hover:underline flex items-center gap-1"
+                    >
+                      Open Full Notes Studio <ArrowRight size={12} />
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -222,9 +228,19 @@ export default function ProductPreview() {
                   <p>&#125;</p>
                 </div>
 
-                <div className="p-2.5 rounded-lg bg-emerald-950/30 border border-emerald-500/20 text-xs text-emerald-300 flex items-center gap-2">
-                  <CheckCircle2 size={14} className="shrink-0" />
-                  <span>Executed in isolated sandbox. 0 warnings, 0 deprecated APIs detected.</span>
+                <div className="flex items-center justify-between pt-1">
+                  <div className="p-2.5 rounded-lg bg-emerald-950/30 border border-emerald-500/20 text-xs text-emerald-300 flex items-center gap-2">
+                    <CheckCircle2 size={14} className="shrink-0" />
+                    <span>Executed in isolated sandbox. 0 warnings.</span>
+                  </div>
+                  {onOpenCodePlayground && (
+                    <button
+                      onClick={onOpenCodePlayground}
+                      className="px-3 py-1.5 rounded-lg bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/30 text-xs font-semibold flex items-center gap-1.5 transition-all"
+                    >
+                      <Terminal size={13} /> Launch Playground
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -252,13 +268,25 @@ export default function ProductPreview() {
                     </div>
                   </div>
                 </div>
+                {onOpenCodePlayground && (
+                  <button
+                    onClick={onOpenCodePlayground}
+                    className="w-full py-2 rounded-xl bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 border border-violet-500/30 text-xs font-semibold flex items-center justify-center gap-1.5"
+                  >
+                    <span>Run this exercise in Code Playground</span>
+                    <ArrowRight size={13} />
+                  </button>
+                )}
               </div>
             )}
 
             {/* Tab: TRAINER NOTES */}
             {activeTab === 'notes' && (
               <div className="space-y-3 animate-in fade-in duration-150">
-                <div className="text-xs font-semibold text-white">Pedagogical Guide for Slide 03</div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-white">Pedagogical Guide for Slide 03</span>
+                  <span className="text-[11px] font-mono text-violet-400">Speaking Time: 3-4 mins</span>
+                </div>
                 <div className="p-4 rounded-xl bg-[#0f1629] border border-white/10 space-y-3 text-xs text-slate-300 leading-relaxed">
                   <p>
                     <strong className="text-violet-400">Common Student Confusion:</strong> Students often confuse <code>@Controller</code> with <code>@RestController</code>. Emphasize that without <code>@ResponseBody</code>, Spring looks for a JSP or Thymeleaf template.
@@ -267,6 +295,15 @@ export default function ProductPreview() {
                     <strong className="text-cyan-400">Classroom Question:</strong> "Why not return the JPA entity directly?" Use this to transition to DTO projection in Slide 04.
                   </p>
                 </div>
+                {onOpenSlideNotes && (
+                  <button
+                    onClick={onOpenSlideNotes}
+                    className="w-full py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-semibold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-violet-600/30"
+                  >
+                    <FileText size={14} />
+                    <span>Open Full Slide Notes Studio (Edit, PDF & DOCX Export)</span>
+                  </button>
+                )}
               </div>
             )}
 

@@ -1,8 +1,8 @@
 import React from 'react';
-import { Sparkles, ArrowRight, ShieldCheck, CheckCircle2, Download, Layers } from 'lucide-react';
+import { Sparkles, ArrowRight, ShieldCheck, CheckCircle2, Download, Layers, FileText, Terminal } from 'lucide-react';
 import ProductPreview from './ProductPreview';
 
-export default function Hero({ onOpenCreateCourse }) {
+export default function Hero({ onOpenCreateCourse, onOpenSlideNotes, onOpenCodePlayground }) {
   return (
     <section className="relative pt-12 pb-20 md:pt-20 md:pb-32 overflow-hidden bg-grid-pattern">
       
@@ -34,7 +34,7 @@ export default function Hero({ onOpenCreateCourse }) {
               tested assignments, and quizzes — with automated verification built in.
             </p>
 
-            {/* Buttons */}
+            {/* Primary & Secondary Buttons */}
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-2">
               <button
                 onClick={onOpenCreateCourse}
@@ -50,6 +50,25 @@ export default function Hero({ onOpenCreateCourse }) {
               >
                 <span>See How It Works</span>
               </a>
+            </div>
+
+            {/* Quick Workspace Switcher Buttons */}
+            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 pt-1">
+              <button
+                onClick={onOpenSlideNotes}
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-violet-950/30 text-violet-300 hover:text-white hover:bg-violet-900/40 border border-violet-500/30 transition-all"
+              >
+                <FileText size={14} />
+                <span>Open Slide Notes Studio (3-Pane)</span>
+              </button>
+
+              <button
+                onClick={onOpenCodePlayground}
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-cyan-950/30 text-cyan-300 hover:text-white hover:bg-cyan-900/40 border border-cyan-500/30 transition-all"
+              >
+                <Terminal size={14} />
+                <span>Launch Code Playground (Live Runner)</span>
+              </button>
             </div>
 
             {/* Three Compact Trust Indicators */}
@@ -72,7 +91,10 @@ export default function Hero({ onOpenCreateCourse }) {
 
           {/* Right Column: High-fidelity Product Preview */}
           <div className="lg:col-span-6 w-full">
-            <ProductPreview />
+            <ProductPreview 
+              onOpenSlideNotes={onOpenSlideNotes}
+              onOpenCodePlayground={onOpenCodePlayground}
+            />
           </div>
 
         </div>

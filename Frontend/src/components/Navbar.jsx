@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, BookOpen, Menu, X, ArrowRight, Sparkles } from 'lucide-react';
+import { ShieldCheck, BookOpen, Menu, X, ArrowRight, Sparkles, Terminal, FileText } from 'lucide-react';
 
-export default function Navbar({ onOpenCreateCourse }) {
+export default function Navbar({ onOpenCreateCourse, onOpenSlideNotes, onOpenCodePlayground }) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -23,7 +23,7 @@ export default function Navbar({ onOpenCreateCourse }) {
 
   return (
     <header 
-      className={`sticky top-0 z-50 transition-all duration-300 ${
+      className={`sticky top-0 z-40 transition-all duration-300 ${
         isScrolled 
           ? 'bg-[#060913]/90 backdrop-blur-md border-b border-white/10 shadow-lg shadow-black/40 py-3' 
           : 'bg-transparent border-b border-white/5 py-4'
@@ -54,7 +54,7 @@ export default function Navbar({ onOpenCreateCourse }) {
           </a>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-8">
+          <nav className="hidden lg:flex items-center gap-6">
             {navLinks.map((link) => (
               <a
                 key={link.label}
@@ -64,6 +64,25 @@ export default function Navbar({ onOpenCreateCourse }) {
                 {link.label}
               </a>
             ))}
+
+            <div className="h-4 w-[1px] bg-white/10 mx-1" />
+
+            {/* Feature 1 & 2 Quick Launchers */}
+            <button
+              onClick={onOpenSlideNotes}
+              className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-violet-950/40 text-violet-300 hover:text-white hover:bg-violet-900/50 border border-violet-500/30 transition-all flex items-center gap-1.5"
+            >
+              <FileText size={13} />
+              <span>Slide Notes</span>
+            </button>
+
+            <button
+              onClick={onOpenCodePlayground}
+              className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-cyan-950/40 text-cyan-300 hover:text-white hover:bg-cyan-900/50 border border-cyan-500/30 transition-all flex items-center gap-1.5"
+            >
+              <Terminal size={13} />
+              <span>Code Playground</span>
+            </button>
           </nav>
 
           {/* Right Action Buttons */}
@@ -84,7 +103,7 @@ export default function Navbar({ onOpenCreateCourse }) {
           </div>
 
           {/* Mobile Menu Button */}
-          <div className="flex md:hidden">
+          <div className="flex lg:hidden">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
@@ -99,7 +118,7 @@ export default function Navbar({ onOpenCreateCourse }) {
 
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-[#0a0e1a]/98 border-b border-white/10 px-4 pt-3 pb-6 space-y-3 backdrop-blur-xl animate-in slide-in-from-top duration-200">
+        <div className="lg:hidden bg-[#0a0e1a]/98 border-b border-white/10 px-4 pt-3 pb-6 space-y-3 backdrop-blur-xl animate-in slide-in-from-top duration-200">
           <div className="flex flex-col space-y-2">
             {navLinks.map((link) => (
               <a
@@ -111,6 +130,27 @@ export default function Navbar({ onOpenCreateCourse }) {
                 {link.label}
               </a>
             ))}
+
+            <div className="pt-2 border-t border-white/10 grid grid-cols-2 gap-2">
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onOpenSlideNotes();
+                }}
+                className="py-2.5 px-3 rounded-xl bg-violet-950/40 text-violet-300 border border-violet-500/30 text-xs font-semibold flex items-center justify-center gap-1.5"
+              >
+                <FileText size={14} /> Slide Notes
+              </button>
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onOpenCodePlayground();
+                }}
+                className="py-2.5 px-3 rounded-xl bg-cyan-950/40 text-cyan-300 border border-cyan-500/30 text-xs font-semibold flex items-center justify-center gap-1.5"
+              >
+                <Terminal size={14} /> Playground
+              </button>
+            </div>
           </div>
           <div className="pt-3 border-t border-white/10 flex flex-col gap-2">
             <button 
