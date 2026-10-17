@@ -61,13 +61,14 @@ function validateCheatSheet(content) {
 
 // ─── Course Generation ─────────────────────────────────────────────────────────
 
-export async function generateCourse({ topic, studentLevel, durationMinutes, language, parallel = false }) {
+export async function generateCourse({ topic, studentLevel, durationMinutes, language, learningObjectives = '', parallel = false }) {
   const prompt = `
 Create a complete educational course for "${topic}".
 
 Student level: ${studentLevel}
 Duration: ${durationMinutes} minutes
 Language: ${language}
+Specific learning objectives: ${learningObjectives || 'Choose practical objectives appropriate for the topic and level.'}
 
 Return ONLY a JSON object with this structure:
 {

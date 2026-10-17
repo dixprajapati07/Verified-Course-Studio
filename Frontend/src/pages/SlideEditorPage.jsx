@@ -1,11 +1,10 @@
 // src/pages/SlideEditorPage.jsx
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Search, Plus, RefreshCw, Undo2, ChevronLeft, ChevronRight, ShieldCheck, ShieldAlert, AlignLeft, BookOpen, Code2, CheckSquare } from 'lucide-react';
+import { Search, Plus, RefreshCw, Undo2, ChevronLeft, ChevronRight, ShieldCheck, ShieldAlert, AlignLeft, BookOpen, Code2, CheckSquare, Loader2, AlertTriangle } from 'lucide-react';
 import WorkspaceHeader from '../components/layout/WorkspaceHeader';
 import Modal from '../components/common/Modal';
-import { mockSlides } from '../data/mockSlides';
-import { mockCourses } from '../data/mockCourses';
+import { api } from '../api';
 import { useApp } from '../context/AppContext';
 import { highlightCode } from '../utils/codeHighlighter';
 
@@ -141,21 +140,49 @@ function SlideCanvas({ slide }) {
 
 export default function SlideEditorPage() {
   const { courseId } = useParams();
-  const course       = mockCourses.find(c => c.id === courseId) || mockCourses[0];
   const { addToast } = useApp();
 
-  const [slides, setSlides]           = useState(mockSlides);
-  const [activeId, setActiveId]       = useState(mockSlides[0].id);
+  const [course, setCourse]           = useState(null);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState(null);
+  const [slides, setSlides]           = useState([]);
+  const [activeId, setActiveId]       = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab]     = useState('content');
   const [regenModal, setRegenModal]   = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const [history, setHistory]         = useState([]);
   const [editedTitle, setEditedTitle] = useState('');
   const [editedBody, setEditedBody]   = useState('');
   const [isEditing, setIsEditing]     = useState(false);
 
-  const activeSlide = slides.find(s => s.id === activeId) || slides[0];
-  const filtered    = slides.filter(s => s.title.toLowerCase().includes(searchQuery.toLowerCase()));
+  const fetchCourse = async () => {
+    if (!courseId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.getCourse(courseId);
+      const c = res.course;
+      setCourse(c);
+      const sList = c?.content?.slides || [];
+      setSlides(sList);
+      if (sList.length > 0 && !activeId) {
+        setActiveId(sList[0].id);
+      }
+    } catch (err) {
+      console.error("Failed to load course for slide editor:", err);
+      setError(err.message || "Failed to load course");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCourse();
+  }, [courseId]);
+
+  const activeSlide = slides.find(s => s.id === activeId) || slides[0] || {};
+  const filtered    = slides.filter(s => (s.title || '').toLowerCase().includes(searchQuery.toLowerCase()));
 
   const activateSlide = (slide) => {
     setActiveId(slide.id);
@@ -165,24 +192,23 @@ export default function SlideEditorPage() {
     setActiveTab('content');
   };
 
-  const handleRegenerate = useCallback(() => {
+  const handleRegenerate = useCallback(async () => {
     setRegenModal(false);
-    setSlides(prev => {
-      const snapshot = JSON.parse(JSON.stringify(prev));
-      setHistory(h => [...h, snapshot]);
+    const slideIndex = slides.findIndex(s => s.id === activeId);
+    if (slideIndex === -1 || !course) return;
 
-      return prev.map(s => {
-        if (s.id !== activeId) return s;
-        return {
-          ...s,
-          title: s.title,
-          body: `[Regenerated] ${s.body}`,
-          verificationStatus: s.hasCode ? 'pending' : s.verificationStatus,
-        };
-      });
-    });
-    addToast('Slide content regenerated (local demo).', 'info');
-  }, [activeId, addToast]);
+    setRegenerating(true);
+    try {
+      const res = await api.regenerateSlide(course.id, slideIndex);
+      setCourse(res.course);
+      setSlides(res.course.content.slides);
+      addToast(`Slide ${slideIndex + 1} regenerated and verified via Java 21!`, 'success');
+    } catch (err) {
+      addToast(`Slide regeneration failed: ${err.message}`, 'error');
+    } finally {
+      setRegenerating(false);
+    }
+  }, [activeId, course, slides, addToast]);
 
   const handleUndo = () => {
     if (!history.length) return;
@@ -190,6 +216,26 @@ export default function SlideEditorPage() {
     setHistory(h => h.slice(0, -1));
     addToast('Reverted to previous revision.', 'success');
   };
+
+  if (loading) {
+    return (
+      <div style={{ background: 'var(--bg-base)', minHeight: '100vh', padding: '5rem 1.5rem', textAlign: 'center' }}>
+        <Loader2 size={32} className="spinner" style={{ margin: '0 auto 1rem', color: 'var(--text-primary)' }} />
+        <p style={{ color: 'var(--text-secondary)' }}>Loading slides...</p>
+      </div>
+    );
+  }
+
+  if (error || !course) {
+    return (
+      <div style={{ background: 'var(--bg-base)', minHeight: '100vh', padding: '5rem 1.5rem', textAlign: 'center' }}>
+        <AlertTriangle size={36} color="var(--status-failed)" style={{ margin: '0 auto 1rem' }} />
+        <h2 style={{ color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Failed to Load Slide Editor</h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>{error || 'Course not found'}</p>
+        <button className="btn-secondary" onClick={fetchCourse}>Retry</button>
+      </div>
+    );
+  }
 
   const saveEdits = () => {
     setSlides(prev => prev.map(s => s.id !== activeId ? s : { ...s, title: editedTitle, body: editedBody }));
@@ -461,7 +507,7 @@ export default function SlideEditorPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <span className={`status-dot ${activeSlide.verificationStatus === 'passed' ? 'green' : 'red'}`} />
                       <span style={{ fontSize: '0.825rem', color: 'var(--text-primary)', textTransform: 'capitalize' }}>
-                        {activeSlide.verificationStatus} (Mock verification container)
+                        {activeSlide.verificationStatus} (Java 21 verified runtime)
                       </span>
                     </div>
                   ) : (

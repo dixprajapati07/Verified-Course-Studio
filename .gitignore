@@ -9,6 +9,15 @@ node_modules/
 .env.development.local
 .env.test.local
 .env.production.local
+# Catch nested .env files in any subdirectory
+**/.env
+**/Backend/.env
+**/Frontend/.env
+
+# Local file store (used when Supabase is not configured)
+# Never commit this — it contains generated course data on your machine only
+data/
+Backend/data/
 
 # Logs
 npm-debug.log*

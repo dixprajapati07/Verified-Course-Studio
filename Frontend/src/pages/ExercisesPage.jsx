@@ -1,10 +1,8 @@
-// src/pages/ExercisesPage.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { ChevronDown, ChevronUp, CheckCircle2, XCircle, Code2, BookOpen, TestTube, AlertCircle } from 'lucide-react';
+import { ChevronDown, ChevronUp, CheckCircle2, XCircle, Code2, BookOpen, TestTube, AlertCircle, Loader2, AlertTriangle, ShieldCheck } from 'lucide-react';
 import WorkspaceHeader from '../components/layout/WorkspaceHeader';
-import { mockExercises } from '../data/mockExercises';
-import { mockCourses } from '../data/mockCourses';
+import { api } from '../api';
 import { highlightCode } from '../utils/codeHighlighter';
 
 function TestCaseRow({ tc }) {
@@ -212,7 +210,50 @@ function ExerciseCard({ exercise }) {
 
 export default function ExercisesPage() {
   const { courseId } = useParams();
-  const course = mockCourses.find(c => c.id === courseId) || mockCourses[0];
+  const [course, setCourse] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchCourse = async () => {
+    if (!courseId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.getCourse(courseId);
+      setCourse(res.course);
+    } catch (err) {
+      console.error("Failed to load course exercises:", err);
+      setError(err.message || "Failed to load exercises");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCourse();
+  }, [courseId]);
+
+  if (loading) {
+    return (
+      <div style={{ background: 'var(--bg-base)', minHeight: '100vh', padding: '5rem 1.5rem', textAlign: 'center' }}>
+        <Loader2 size={32} className="spinner" style={{ margin: '0 auto 1rem', color: 'var(--text-primary)' }} />
+        <p style={{ color: 'var(--text-secondary)' }}>Loading practical exercises...</p>
+      </div>
+    );
+  }
+
+  if (error || !course) {
+    return (
+      <div style={{ background: 'var(--bg-base)', minHeight: '100vh', padding: '5rem 1.5rem', textAlign: 'center' }}>
+        <AlertTriangle size={36} color="var(--status-failed)" style={{ margin: '0 auto 1rem' }} />
+        <h2 style={{ color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Failed to Load Exercises</h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>{error || 'Course not found'}</p>
+        <button className="btn-secondary" onClick={fetchCourse}>Retry</button>
+      </div>
+    );
+  }
+
+  const exercises = Array.isArray(course?.content?.exercises) ? course.content.exercises : [];
 
   return (
     <div style={{ background: 'var(--bg-base)', minHeight: '100vh', transition: 'background-color 0.2s ease' }}>
@@ -231,11 +272,11 @@ export default function ExercisesPage() {
             Practical Exercises
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-            {mockExercises.length} lab exercises with reference solutions and test verification suites.
+            {exercises.length} lab exercises with reference solutions and test verification suites.
           </p>
         </div>
 
-        {/* Demo Data Disclaimer */}
+        {/* Live Verification Notice */}
         <div style={{
           display: 'flex',
           gap: '0.65rem',
@@ -246,14 +287,14 @@ export default function ExercisesPage() {
           borderRadius: 'var(--radius-sm)',
           alignItems: 'center'
         }}>
-          <AlertCircle size={14} color="var(--text-muted)" style={{ flexShrink: 0 }} />
-          <p style={{ fontSize: '0.775rem', color: 'var(--text-secondary)' }}>
-            Exercise assertions and compiler traces shown are illustrative mock datasets for template verification.
+          <ShieldCheck size={16} color="var(--status-passed)" style={{ flexShrink: 0 }} />
+          <p style={{ fontSize: '0.775rem', color: 'var(--text-secondary)', margin: 0 }}>
+            <strong>VERIFIED TEST SUITES:</strong> Reference solutions pass automated tests, and naive solutions are tested to prove assertion validity.
           </p>
         </div>
 
         {/* Exercises list */}
-        {mockExercises.map(ex => <ExerciseCard key={ex.id} exercise={ex} />)}
+        {exercises.map(ex => <ExerciseCard key={ex.id} exercise={ex} />)}
       </div>
     </div>
   );

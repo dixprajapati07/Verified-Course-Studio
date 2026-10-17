@@ -1,5 +1,6 @@
 // src/context/AppContext.jsx
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { clearAuthToken } from '../services/api';
 
 const AppContext = createContext(null);
 
@@ -7,6 +8,14 @@ export function AppProvider({ children }) {
   const [toasts, setToasts] = useState([]);
   const [currentCourse, setCurrentCourse] = useState(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authSession, setAuthSessionState] = useState(() => {
+    try {
+      const stored = localStorage.getItem('vcs_auth_session');
+      return stored ? JSON.parse(stored) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   // A navigate function that can be provided by components inside the Router
   const [navigateRef, setNavigateRef] = useState(null);
 
@@ -69,6 +78,22 @@ export function AppProvider({ children }) {
 
   const openAuthModal = useCallback(() => setAuthModalOpen(true), []);
   const closeAuthModal = useCallback(() => setAuthModalOpen(false), []);
+
+  const setAuthSession = useCallback((sessionData) => {
+    setAuthSessionState(sessionData);
+    try {
+      if (sessionData) {
+        localStorage.setItem('vcs_auth_session', JSON.stringify(sessionData));
+      } else {
+        localStorage.removeItem('vcs_auth_session');
+      }
+    } catch (e) { }
+  }, []);
+
+  const clearAuthSession = useCallback(() => {
+    clearAuthToken();
+    setAuthSession(null);
+  }, [setAuthSession]);
 
   // Theme management with localStorage and OS preference detection
   const [theme, setThemeState] = useState(() => {
@@ -154,6 +179,11 @@ export function AppProvider({ children }) {
       authModalOpen,
       openAuthModal,
       closeAuthModal,
+      authSession,
+      authUser: authSession?.user || null,
+      isAuthenticated: Boolean(authSession?.access_token),
+      setAuthSession,
+      clearAuthSession,
       // Navigate ref - set by RouterBridge inside BrowserRouter
       navigateRef,
       setNavigateRef,

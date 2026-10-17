@@ -9,12 +9,16 @@ function getContent(course) {
 }
 
 async function findOwnedCourse(courseId, userId) {
-  const { data, error } = await supabase
+  let query = supabase
     .from("courses")
     .select("id, title, content")
-    .eq("id", courseId)
-    .eq("user_id", userId)
-    .single();
+    .eq("id", courseId);
+
+  if (userId) {
+    query = query.or(`user_id.eq.${userId},user_id.is.null`);
+  }
+
+  const { data, error } = await query.single();
 
   if (error) {
     if (error.code === "PGRST116") {

@@ -1,24 +1,47 @@
-// src/pages/QuizPage.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { CheckCircle2, XCircle, ChevronRight, Trophy, RotateCcw } from 'lucide-react';
+import { CheckCircle2, XCircle, ChevronRight, Trophy, RotateCcw, Loader2, AlertTriangle } from 'lucide-react';
 import WorkspaceHeader from '../components/layout/WorkspaceHeader';
-import { mockQuiz } from '../data/mockQuiz';
-import { mockCourses } from '../data/mockCourses';
+import { api } from '../api';
 
 export default function QuizPage() {
   const { courseId } = useParams();
   const navigate     = useNavigate();
-  const course = mockCourses.find(c => c.id === courseId) || mockCourses[0];
 
+  const [course, setCourse]       = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState(null);
   const [current, setCurrent]     = useState(0);
   const [selected, setSelected]   = useState(null);
   const [submitted, setSubmitted] = useState(false);
   const [answers, setAnswers]     = useState([]);
   const [finished, setFinished]   = useState(false);
 
-  const question = mockQuiz[current];
-  const isCorrect = selected === question.correctIndex;
+  const fetchCourse = async () => {
+    if (!courseId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.getCourse(courseId);
+      setCourse(res.course);
+    } catch (err) {
+      console.error("Failed to load course quiz:", err);
+      setError(err.message || "Failed to load quiz");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCourse();
+  }, [courseId]);
+
+  const quiz = Array.isArray(course?.content?.quiz) ? course.content.quiz : [];
+  const question = quiz[current] || {};
+  const correctIndex = question.correctIndex !== undefined
+    ? question.correctIndex
+    : (Array.isArray(question.options) ? question.options.indexOf(question.answer) : -1);
+  const isCorrect = selected === correctIndex;
 
   const handleSelect = (idx) => {
     if (submitted) return;
@@ -28,11 +51,11 @@ export default function QuizPage() {
   const handleSubmit = () => {
     if (selected === null) return;
     setSubmitted(true);
-    setAnswers(prev => [...prev, { questionId: question.id, selected, correct: selected === question.correctIndex }]);
+    setAnswers(prev => [...prev, { questionId: question.id || `q-${current}`, selected, correct: selected === correctIndex }]);
   };
 
   const handleNext = () => {
-    if (current < mockQuiz.length - 1) {
+    if (current < quiz.length - 1) {
       setCurrent(c => c + 1);
       setSelected(null);
       setSubmitted(false);
@@ -50,7 +73,7 @@ export default function QuizPage() {
   };
 
   const score = answers.filter(a => a.correct).length;
-  const pct   = Math.round((score / mockQuiz.length) * 100);
+  const pct   = quiz.length > 0 ? Math.round((score / quiz.length) * 100) : 0;
 
   if (finished) {
     return (
@@ -79,7 +102,7 @@ export default function QuizPage() {
             Quiz Complete
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginBottom: '2rem' }}>
-            You scored <strong style={{ color: 'var(--text-primary)' }}>{score} of {mockQuiz.length}</strong> questions correctly ({pct}%).
+            You scored <strong style={{ color: 'var(--text-primary)' }}>{score} of {quiz.length}</strong> questions correctly ({pct}%).
           </p>
 
           {/* Score recap box */}
@@ -115,7 +138,7 @@ export default function QuizPage() {
                     <XCircle size={14} color="var(--status-failed)" style={{ flexShrink: 0 }} />
                   )}
                   <span style={{ color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    Q{i + 1}: {mockQuiz[i].question}
+                    Q{i + 1}: {quiz[i]?.question}
                   </span>
                   <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.725rem' }}>
                     {a.correct ? '1.0 / 1.0' : '0.0 / 1.0'}
@@ -138,6 +161,26 @@ export default function QuizPage() {
     );
   }
 
+  if (loading) {
+    return (
+      <div style={{ background: 'var(--bg-base)', minHeight: '100vh', padding: '5rem 1.5rem', textAlign: 'center' }}>
+        <Loader2 size={32} className="spinner" style={{ margin: '0 auto 1rem', color: 'var(--text-primary)' }} />
+        <p style={{ color: 'var(--text-secondary)' }}>Loading interactive assessment...</p>
+      </div>
+    );
+  }
+
+  if (error || !course || quiz.length === 0) {
+    return (
+      <div style={{ background: 'var(--bg-base)', minHeight: '100vh', padding: '5rem 1.5rem', textAlign: 'center' }}>
+        <AlertTriangle size={36} color="var(--status-failed)" style={{ margin: '0 auto 1rem' }} />
+        <h2 style={{ color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Quiz Unavailable</h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>{error || 'No quiz questions available for this course.'}</p>
+        <button className="btn-secondary" onClick={() => navigate(`/course/${courseId}`)}>Back to Workspace</button>
+      </div>
+    );
+  }
+
   return (
     <div style={{ background: 'var(--bg-base)', minHeight: '100vh', transition: 'background-color 0.2s ease' }}>
       <WorkspaceHeader course={course} />
@@ -153,13 +196,13 @@ export default function QuizPage() {
             marginBottom: '0.5rem',
             fontFamily: 'var(--font-mono)'
           }}>
-            <span>QUESTION {current + 1} OF {mockQuiz.length}</span>
+            <span>QUESTION {current + 1} OF {quiz.length}</span>
             <span>{score} CORRECT</span>
           </div>
           <div style={{ background: 'var(--border)', borderRadius: 'var(--radius-full)', height: '3px', overflow: 'hidden' }}>
             <div
               style={{
-                width: `${((current + (submitted ? 1 : 0)) / mockQuiz.length) * 100}%`,
+                width: `${((current + (submitted ? 1 : 0)) / quiz.length) * 100}%`,
                 height: '100%',
                 background: 'var(--text-primary)',
                 transition: 'width 0.3s ease'
@@ -280,7 +323,7 @@ export default function QuizPage() {
             </button>
           ) : (
             <button className="btn-primary" onClick={handleNext} style={{ gap: '0.35rem' }}>
-              <span>{current < mockQuiz.length - 1 ? 'Next Question' : 'View Results'}</span>
+              <span>{current < quiz.length - 1 ? 'Next Question' : 'View Results'}</span>
               <ChevronRight size={13} />
             </button>
           )}

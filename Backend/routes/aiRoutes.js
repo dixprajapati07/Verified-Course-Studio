@@ -49,6 +49,7 @@ router.post("/generate-course", async (req, res) => {
       student_level = "Beginner",
       duration_minutes = 60,
       language = "English",
+      learning_objectives = "",
       parallel = false,
     } = req.body;
 
@@ -67,6 +68,7 @@ router.post("/generate-course", async (req, res) => {
       studentLevel: student_level,
       durationMinutes: duration_minutes,
       language: language.trim(),
+      learningObjectives: learning_objectives,
       parallel: !!parallel,
     });
 
@@ -341,5 +343,34 @@ router.get("/course/:id", requireAuth, async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+
+/**
+ * Returns a short, safe error reason suitable for display in the UI.
+ * Never leaks raw SQL, table names, or keys.
+ */
+function sanitizeErrorMessage(error) {
+  const code = error.code || "";
+  const msg  = (error.message || "").toLowerCase();
+
+  if (code === "23503") {
+    return "user account not found in the database (foreign-key violation — run the SQL migration)";
+  }
+  if (code === "42P01") {
+    return "the 'courses' table does not exist yet — run the SQL migration in Supabase";
+  }
+  if (code === "42501" || msg.includes("row-level security") || msg.includes("policy")) {
+    return "permission denied by row-level security — check RLS policies in Supabase";
+  }
+  if (code === "PGRST204" || msg.includes("could not find the") || msg.includes("column")) {
+    return "table schema mismatch — a required column is missing, run the SQL migration";
+  }
+  if (code === "22P02") {
+    return "data type mismatch (e.g. user_id format is wrong)";
+  }
+  if (msg.includes("jwt") || msg.includes("token") || code === "PGRST301") {
+    return "authentication token rejected by Supabase";
+  }
+  return `database error (code: ${code || "unknown"})`;
+}
 
 export default router;

@@ -1,22 +1,14 @@
 // src/pages/CreateCoursePage.jsx
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { ArrowRight, Paperclip, Check, AlertCircle, Sparkles, User, Shield, Info, Layers, Clock, Code2, Terminal } from 'lucide-react';
+import { ArrowRight, Paperclip, Check, AlertCircle, Shield, Layers, Clock, BookOpen, Calculator } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import SmartBackButton from '../components/common/SmartBackButton';
 import { recordNavPath } from '../utils/navigation';
 
 const LEVELS = ['Beginner', 'Intermediate', 'Advanced'];
-const DURATIONS = ['30 minutes', '45 minutes', '60 minutes', '90 minutes', '120 minutes'];
-const LANGUAGES = ['Java', 'Python', 'TypeScript', 'Go', 'Rust', 'C++'];
-const RUNTIMES = {
-  Java: ['Java 21', 'Spring Boot 3', 'Java 17'],
-  Python: ['Python 3.12', 'FastAPI', 'Django 5', 'Data Science Standard'],
-  TypeScript: ['Node 20', 'Next.js 14', 'Express TS'],
-  Go: ['Go 1.22', 'Gin Gonic', 'Standard Go'],
-  Rust: ['Rust 1.77', 'Actix Web', 'Tokio'],
-  'C++': ['C++20 (GCC 13)', 'C++17', 'CMake']
-};
+const PRESET_DURATIONS = ['30 minutes', '60 minutes', '90 minutes', '120 minutes', 'Custom'];
+const COMMON_LECTURE_COUNTS = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 24, 30];
 
 export default function CreateCoursePage() {
   const navigate = useNavigate();
@@ -30,16 +22,21 @@ export default function CreateCoursePage() {
   const initialTopic = location.state?.prompt || location.state?.topic || draftCourse?.topic || '';
   const initialLevel = location.state?.level || draftCourse?.level || 'Beginner';
   const initialDuration = location.state?.duration || draftCourse?.duration || '60 minutes';
-  const initialLanguage = location.state?.language || draftCourse?.language || 'Java';
-  const initialRuntime = location.state?.runtime || draftCourse?.runtime || 'Java 21';
+  const initialLectures = Number(location.state?.numberOfLectures || draftCourse?.numberOfLectures) || 4;
   const initialObjectives = draftCourse?.learningObjectives || '';
   const initialFileAttached = location.state?.fileAttached || draftCourse?.fileAttached || false;
 
   const [topic, setTopic] = useState(initialTopic);
   const [level, setLevel] = useState(initialLevel);
-  const [duration, setDuration] = useState(initialDuration);
-  const [language, setLanguage] = useState(initialLanguage);
-  const [runtime, setRuntime] = useState(initialRuntime);
+  const [durationPreset, setDurationPreset] = useState(() => {
+    if (PRESET_DURATIONS.includes(initialDuration)) return initialDuration;
+    return '60 minutes';
+  });
+  const [customMinutes, setCustomMinutes] = useState(() => {
+    const parsed = parseInt(String(initialDuration).replace(/\D/g, ''), 10);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : 60;
+  });
+  const [numberOfLectures, setNumberOfLectures] = useState(initialLectures);
   const [learningObjectives, setLearningObjectives] = useState(initialObjectives);
   const [fileAttached, setFileAttached] = useState(initialFileAttached);
   const [attachedFileName, setAttachedFileName] = useState(draftCourse?.fileName || '');
@@ -51,27 +48,27 @@ export default function CreateCoursePage() {
     recordNavPath(location.pathname);
   }, [location.pathname]);
 
-  // Adjust runtime options when language changes
-  useEffect(() => {
-    const available = RUNTIMES[language] || ['Standard'];
-    if (!available.includes(runtime)) {
-      setRuntime(available[0]);
-    }
-  }, [language, runtime]);
+  // Derive active total minutes
+  const totalMinutes = durationPreset === 'Custom'
+    ? Math.min(600, Math.max(15, Number(customMinutes) || 60))
+    : parseInt(durationPreset.replace(/\D/g, ''), 10) || 60;
+
+  // Auto calculate time per lecture
+  const timePerLecture = Math.round(totalMinutes / Math.max(1, numberOfLectures));
 
   // Auto-save form inputs to session draft so back navigation & refresh preserve all data
   useEffect(() => {
     updateDraftCourse({
       topic,
       level,
-      duration,
-      language,
-      runtime,
+      duration: durationPreset === 'Custom' ? `${totalMinutes} minutes` : durationPreset,
+      durationMinutes: totalMinutes,
+      numberOfLectures,
       learningObjectives,
       fileAttached,
       fileName: attachedFileName
     });
-  }, [topic, level, duration, language, runtime, learningObjectives, fileAttached, attachedFileName, updateDraftCourse]);
+  }, [topic, level, durationPreset, totalMinutes, numberOfLectures, learningObjectives, fileAttached, attachedFileName, updateDraftCourse]);
 
   // Auto grow textarea
   useEffect(() => {
@@ -84,19 +81,25 @@ export default function CreateCoursePage() {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!topic.trim()) {
-      setValidationError('Please enter a course topic or subject.');
+      setValidationError('Please enter a course topic, description, or subject area.');
       topicRef.current?.focus();
       return;
     }
+
+    if (numberOfLectures < 1 || numberOfLectures > 30) {
+      setValidationError('Number of lectures must be between 1 and 30.');
+      return;
+    }
+
     setValidationError('');
     setIsSubmitting(true);
 
     const submissionData = {
       topic: topic.trim(),
       level,
-      duration,
-      language,
-      runtime,
+      duration: `${totalMinutes} minutes`,
+      durationMinutes: totalMinutes,
+      numberOfLectures: Number(numberOfLectures),
       learningObjectives: learningObjectives.trim(),
       fileAttached,
       fileName: attachedFileName,
@@ -109,7 +112,7 @@ export default function CreateCoursePage() {
     setTimeout(() => {
       // Navigate to generation workspace
       navigate('/generate', { state: submissionData });
-    }, 350);
+    }, 300);
   };
 
   return (
@@ -238,7 +241,7 @@ export default function CreateCoursePage() {
             lineHeight: 1.6,
             maxWidth: '640px'
           }}>
-            Specify the teaching topic, session length, and runtime versions. Verified Course Studio synthesizes lecture slides, verified code, trainer notes, and hands-on exercises.
+            Specify the teaching topic, student level, total duration, and number of lectures. Verified Course Studio generates a complete teaching plan with lecture outlines, teaching notes, practical activities, and assessments.
           </p>
         </div>
 
@@ -303,7 +306,7 @@ export default function CreateCoursePage() {
                   setTopic(e.target.value);
                   if (validationError) setValidationError('');
                 }}
-                placeholder="What would you like to teach? e.g. Java Collections Framework focusing on ArrayList vs LinkedList performance, HashMap internal bucketing, and HashSet deduplication with runnable benchmarks..."
+                placeholder="Create a beginner course on the Java Collections Framework. Cover ArrayList, LinkedList, HashMap, and HashSet with verified code examples, common pitfalls, and hands-on exercises."
                 style={{
                   width: '100%',
                   minHeight: '120px',
@@ -331,13 +334,13 @@ export default function CreateCoursePage() {
               )}
             </div>
 
-            {/* Field 2: Compact Selectors Grid */}
+            {/* Field 2: Curriculum Structure Grid (Student Level, Total Duration, Number of Lectures) */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-              gap: '1rem',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+              gap: '1.25rem',
               marginBottom: '2rem',
-              padding: '1.25rem',
+              padding: '1.5rem',
               background: 'var(--bg-surface-secondary)',
               borderRadius: 'var(--radius-sm)',
               border: '1px solid var(--border-subtle)'
@@ -345,7 +348,7 @@ export default function CreateCoursePage() {
               {/* Student Level */}
               <div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>
-                  <Layers size={12} /> Student Level
+                  <Layers size={13} /> Student Level
                 </label>
                 <select
                   value={level}
@@ -355,53 +358,107 @@ export default function CreateCoursePage() {
                 >
                   {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
                 </select>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.35rem' }}>
+                  Pacing and difficulty tier
+                </span>
               </div>
 
-              {/* Session Duration */}
+              {/* Total Course Duration */}
               <div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>
-                  <Clock size={12} /> Duration
+                  <Clock size={13} /> Total Course Duration
                 </label>
                 <select
-                  value={duration}
-                  onChange={(e) => setDuration(e.target.value)}
+                  value={durationPreset}
+                  onChange={(e) => setDurationPreset(e.target.value)}
                   className="select-field"
                   style={{ width: '100%' }}
                 >
-                  {DURATIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                  {PRESET_DURATIONS.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
+
+                {durationPreset === 'Custom' ? (
+                  <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <input
+                      type="number"
+                      min={15}
+                      max={600}
+                      value={customMinutes}
+                      onChange={(e) => setCustomMinutes(Math.max(15, Math.min(600, parseInt(e.target.value, 10) || 60)))}
+                      style={{
+                        width: '90px',
+                        padding: '0.35rem 0.5rem',
+                        fontSize: '0.8rem',
+                        background: 'var(--bg-surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-sm)',
+                        color: 'var(--text-primary)'
+                      }}
+                    />
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>minutes</span>
+                  </div>
+                ) : (
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.35rem' }}>
+                    Total duration across all classes
+                  </span>
+                )}
               </div>
 
-              {/* Programming Language */}
+              {/* Number of Lectures / Classes */}
               <div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>
-                  <Code2 size={12} /> Language
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.4rem' }}>
+                  <BookOpen size={13} /> Number of Lectures / Classes
                 </label>
                 <select
-                  value={language}
-                  onChange={(e) => setLanguage(e.target.value)}
+                  value={numberOfLectures}
+                  onChange={(e) => setNumberOfLectures(Number(e.target.value))}
                   className="select-field"
                   style={{ width: '100%' }}
                 >
-                  {LANGUAGES.map(lang => <option key={lang} value={lang}>{lang}</option>)}
-                </select>
-              </div>
-
-              {/* Runtime & Framework */}
-              <div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>
-                  <Terminal size={12} /> Runtime / Compiler
-                </label>
-                <select
-                  value={runtime}
-                  onChange={(e) => setRuntime(e.target.value)}
-                  className="select-field"
-                  style={{ width: '100%' }}
-                >
-                  {(RUNTIMES[language] || ['Standard']).map(r => (
-                    <option key={r} value={r}>{r}</option>
+                  {COMMON_LECTURE_COUNTS.map(count => (
+                    <option key={count} value={count}>
+                      {count} {count === 1 ? 'Lecture' : 'Lectures'}
+                    </option>
                   ))}
                 </select>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.35rem' }}>
+                  Divide course into teaching sessions
+                </span>
+              </div>
+            </div>
+
+            {/* Calculated Session Duration Callout */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0.85rem 1.25rem',
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              marginBottom: '2rem',
+              flexWrap: 'wrap',
+              gap: '0.75rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <Calculator size={16} color="var(--accent-subtle)" />
+                <span style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>
+                  <strong>Session Distribution:</strong> {totalMinutes} minutes total ÷ {numberOfLectures} {numberOfLectures === 1 ? 'class' : 'classes'}
+                </span>
+              </div>
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                padding: '0.25rem 0.65rem',
+                borderRadius: 'var(--radius-full)',
+                background: 'var(--bg-surface-secondary)',
+                border: '1px solid var(--border-subtle)',
+                fontSize: '0.75rem',
+                fontFamily: 'var(--font-mono)',
+                color: 'var(--text-primary)'
+              }}>
+                <span>Approx. <strong>{timePerLecture} mins</strong> per lecture</span>
               </div>
             </div>
 

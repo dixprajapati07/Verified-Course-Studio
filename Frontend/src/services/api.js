@@ -52,10 +52,10 @@ async function apiFetch(path, options = {}) {
 // ─── AI Endpoints ──────────────────────────────────────────────────────────────
 
 /** Generate a full course */
-export async function apiGenerateCourse({ topic, student_level, duration_minutes, language, parallel = false }) {
+export async function apiGenerateCourse({ topic, student_level, duration_minutes, language, learning_objectives = '', parallel = false }) {
   return apiFetch("/api/ai/generate-course", {
     method: "POST",
-    body: JSON.stringify({ topic, student_level, duration_minutes, language, parallel }),
+    body: JSON.stringify({ topic, student_level, duration_minutes, language, learning_objectives, parallel }),
   });
 }
 
@@ -133,6 +133,15 @@ export async function apiLogin({ email, password }) {
   return apiFetch("/api/auth/login", {
     method: "POST",
     body: JSON.stringify({ email, password }),
+  });
+}
+
+/** Generate spoken audio for slide text through the backend ElevenLabs proxy */
+export async function apiSpeak(text) {
+  return apiFetch("/api/tts/speech", {
+    method: "POST",
+    body: JSON.stringify({ text }),
+    binary: true,
   });
 }
 

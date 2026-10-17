@@ -1,13 +1,23 @@
 // src/components/layout/Header.jsx
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Sun, Moon, Menu, X, ArrowRight } from 'lucide-react';
+import { Sun, Moon, Menu, X, ArrowRight, LogOut } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 export default function Header() {
     const [menuOpen, setMenuOpen] = useState(false);
     const navigate = useNavigate();
-    const { isDark, toggleTheme, openAuthModal, guestSession } = useApp();
+    const {
+        isDark,
+        toggleTheme,
+        openAuthModal,
+        guestSession,
+        authUser,
+        isAuthenticated,
+        clearAuthSession,
+    } = useApp();
+
+    const displayName = authUser?.user_metadata?.full_name || authUser?.email;
 
     const navLinks = [
         { label: 'Product', href: '#features' },
@@ -105,14 +115,35 @@ export default function Header() {
                         </div>
                     )}
 
-                    {/* Start Creating button */}
-                    <button
-                        className="btn-primary"
-                        style={{ fontSize: '0.825rem', padding: '0.45rem 0.95rem' }}
-                        onClick={openAuthModal}
-                    >
-                        Start Creating <ArrowRight size={13} />
-                    </button>
+                    {isAuthenticated && displayName && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span style={{ fontSize: '0.725rem', color: 'var(--text-secondary)' }}>
+                                <span className="status-dot green" />
+                                {displayName}
+                            </span>
+                            <button
+                                type="button"
+                                className="btn-ghost"
+                                onClick={clearAuthSession}
+                                title="Log out"
+                                style={{ fontSize: '0.725rem', color: 'var(--text-secondary)' }}
+                            >
+                                <LogOut size={13} />
+                                Logout
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Signup button */}
+                    {!isAuthenticated && (
+                        <button
+                            className="btn-primary"
+                            style={{ fontSize: '0.825rem', padding: '0.45rem 0.95rem' }}
+                            onClick={openAuthModal}
+                        >
+                            Signup <ArrowRight size={13} />
+                        </button>
+                    )}
                 </nav>
 
                 {/* Mobile controls */}
@@ -154,16 +185,38 @@ export default function Header() {
                             {l.label}
                         </button>
                     ))}
-                    <button
-                        className="btn-primary"
-                        style={{ marginTop: '0.5rem', justifyContent: 'center' }}
-                        onClick={() => {
-                            setMenuOpen(false);
-                            openAuthModal();
-                        }}
-                    >
-                        Start Creating <ArrowRight size={14} />
-                    </button>
+                    {isAuthenticated && displayName && (
+                        <>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0', fontSize: '0.775rem', color: 'var(--text-secondary)' }}>
+                                <span className="status-dot green" />
+                                {displayName}
+                            </div>
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={() => {
+                                    clearAuthSession();
+                                    setMenuOpen(false);
+                                }}
+                                style={{ justifyContent: 'center', width: '100%', fontSize: '0.8rem' }}
+                            >
+                                <LogOut size={14} />
+                                Logout
+                            </button>
+                        </>
+                    )}
+                    {!isAuthenticated && (
+                        <button
+                            className="btn-primary"
+                            style={{ marginTop: '0.5rem', justifyContent: 'center' }}
+                            onClick={() => {
+                                setMenuOpen(false);
+                                openAuthModal();
+                            }}
+                        >
+                            Signup <ArrowRight size={14} />
+                        </button>
+                    )}
                 </div>
             )}
         </header>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, BookOpen, Clock, ShieldCheck, ShieldAlert, Loader2, Trash2, ArrowRight } from 'lucide-react';
-import { mockCourses } from '../data/mockCourses';
+import { Plus, Search, BookOpen, ShieldCheck, ShieldAlert, Loader2, Trash2, ArrowRight, AlertTriangle, RefreshCw } from 'lucide-react';
+import { api } from '../api';
 import Header from '../components/layout/Header';
 import Footer from '../components/layout/Footer';
 import Modal from '../components/common/Modal';
@@ -15,9 +15,11 @@ const statusLabels = {
 };
 
 function CourseCard({ course, onOpen, onDelete }) {
-  const status = statusLabels[course.status] || statusLabels.draft;
+  const status = statusLabels[course.status] || statusLabels.completed;
   const isVerified = course.verificationStatus === 'verified';
   const isPartial = course.verificationStatus === 'partial';
+  const verifiedCount = course.verifiedCount ?? course.verificationSummary?.passed ?? 0;
+  const totalCount = course.totalCount ?? course.verificationSummary?.total ?? 0;
 
   return (
     <div
@@ -44,9 +46,7 @@ function CourseCard({ course, onOpen, onDelete }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
           <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
             <span className={`badge ${status.cls}`}>{status.label}</span>
-            {course.language && (
-              <span className="badge badge-gray">{course.language}</span>
-            )}
+            <span className="badge badge-gray">{course.runtimeVersion || 'Java 21'}</span>
           </div>
           <button
             className="btn-icon"
@@ -84,7 +84,7 @@ function CourseCard({ course, onOpen, onDelete }) {
           overflow: 'hidden',
           marginBottom: '1rem'
         }}>
-          {course.description}
+          {course.description || `Comprehensive ${course.level || 'Beginner'} course for ${course.topic}.`}
         </p>
       </div>
 
@@ -98,11 +98,11 @@ function CourseCard({ course, onOpen, onDelete }) {
           marginBottom: '1rem',
           fontFamily: 'var(--font-mono)'
         }}>
-          <span>{course.slidesCount} slides</span>
+          <span>{course.slidesCount || 0} slides</span>
           <span>·</span>
-          <span>{course.exercisesCount} labs</span>
+          <span>{course.exercisesCount || 0} labs</span>
           <span>·</span>
-          <span>{course.duration}</span>
+          <span>{course.duration || '60 minutes'}</span>
         </div>
 
         <div style={{
@@ -118,17 +118,18 @@ function CourseCard({ course, onOpen, onDelete }) {
             gap: '0.35rem',
             fontSize: '0.75rem',
             color: isVerified ? 'var(--status-passed)' : isPartial ? 'var(--status-warning)' : 'var(--text-muted)',
-            fontFamily: 'var(--font-mono)'
+            fontFamily: 'var(--font-mono)',
+            fontWeight: 500
           }}>
             {isVerified ? (
-              <ShieldCheck size={13} />
+              <ShieldCheck size={14} color="var(--status-passed)" />
             ) : isPartial ? (
-              <ShieldAlert size={13} />
+              <ShieldAlert size={14} color="var(--status-warning)" />
             ) : (
-              <Loader2 size={13} />
+              <Loader2 size={14} className="spinner" />
             )}
-            <span style={{ textTransform: 'capitalize' }}>
-              {isVerified ? 'Verified Sandbox' : isPartial ? 'Partial Check' : 'Pending'}
+            <span>
+              {totalCount > 0 ? `${verifiedCount}/${totalCount} Verified` : (isVerified ? 'Verified' : 'Pending')}
             </span>
           </div>
 
@@ -238,11 +239,45 @@ export default function DashboardPage() {
           <button
             className="btn-primary"
             style={{ gap: '0.45rem' }}
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/create')}
           >
             <Plus size={14} /> New Course
           </button>
         </div>
+
+        {/* Offline / Backend Error State Banner */}
+        {error && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            padding: '1rem 1.25rem',
+            background: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid var(--status-failed)',
+            borderRadius: 'var(--radius-sm)',
+            marginBottom: '2rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <AlertTriangle size={18} color="var(--status-failed)" />
+              <div>
+                <strong style={{ color: 'var(--status-failed)', fontSize: '0.85rem' }}>
+                  Backend Offline or Unreachable
+                </strong>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', margin: '0.2rem 0 0' }}>
+                  {error}
+                </p>
+              </div>
+            </div>
+            <button
+              className="btn-secondary"
+              style={{ gap: '0.35rem', fontSize: '0.8rem', padding: '0.4rem 0.85rem' }}
+              onClick={fetchCourses}
+            >
+              <RefreshCw size={13} /> Retry Connection
+            </button>
+          </div>
+        )}
 
         {/* Search and Filters */}
         <div style={{
@@ -292,8 +327,21 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Course Grid */}
-        {filtered.length > 0 ? (
+        {/* Content Section: Loading, Empty, or Course Grid */}
+        {loading ? (
+          <div style={{
+            textAlign: 'center',
+            padding: '5rem 1rem',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            background: 'var(--bg-card)'
+          }}>
+            <Loader2 size={28} className="spinner" style={{ margin: '0 auto 1rem', color: 'var(--text-primary)' }} />
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+              Loading your verified course curriculum...
+            </p>
+          </div>
+        ) : filtered.length > 0 ? (
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
@@ -317,14 +365,23 @@ export default function DashboardPage() {
           }}>
             <BookOpen size={32} style={{ color: 'var(--text-muted)', margin: '0 auto 0.75rem' }} />
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.75rem' }}>
-              No course materials match your filter.
+              {courses.length === 0 ? "You don't have any generated courses yet." : "No course materials match your filter."}
             </p>
-            <button
-              className="btn-secondary"
-              onClick={() => { setSearch(''); setFilter('all'); }}
-            >
-              Reset Filters
-            </button>
+            {courses.length === 0 ? (
+              <button
+                className="btn-primary"
+                onClick={() => navigate('/create')}
+              >
+                <Plus size={14} /> Generate Your First Course
+              </button>
+            ) : (
+              <button
+                className="btn-secondary"
+                onClick={() => { setSearch(''); setFilter('all'); }}
+              >
+                Reset Filters
+              </button>
+            )}
           </div>
         )}
       </div>
